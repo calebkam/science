@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Brain Matrix Generator</title>
+<meta name="color-scheme" content="dark light">
+<script src="../shared/theme.js"></script>
+<style>html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+</head>
+<body>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap">
+<style>
+  /* Layout: one tool surface. Controls column on the left, a sticky 3D view with the cut table to its right;
+     stacks to a single column (view first) on phones. Palette: cool lab greys, one teal accent. */
+  :root{
+  --bg:#1A1918; --panel:#232220; --ink:#ECE8E1; --muted:#9A958B; --line:#3A3835;
+  --field:#2B2926; --accent:#D97757; --accent-ink:#1F0E07; --accent-soft:#3A2A22;
+  --warn:#e7aa55; --warn-bg:#33270f; --view:#121110; --mesh:#A59C8F;
+  --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#F0EEE6; --panel:#FAF9F5; --ink:#1F1E1D; --muted:#6B665C; --line:#DDD9CC;
+  --field:#F4F2EA; --accent:#C15F3C; --accent-ink:#FFFFFF; --accent-soft:#F3E1D8;
+  --warn:#8a4b00; --warn-bg:#fbefdc; --view:#E7E3D8; --mesh:#8F877A;
+  color-scheme:light;
+}
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans);
+    padding-block: 16px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-bottom: 14px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); max-width: 70ch; }
+  .app { display: grid; grid-template-columns: minmax(300px, 370px) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+  .controls { padding: 14px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .right { display: flex; flex-direction: column; gap: 16px; min-width: 0; position: sticky; top: 12px; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    font: 500 13px var(--sans); padding: 9px 4px; border: 0; background: var(--field); color: var(--ink);
+    cursor: pointer; border-right: 1px solid var(--line);
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .seg.two { grid-template-columns: repeat(2, 1fr); }
+  .seg small { display: block; font: 400 11px var(--sans); opacity: .8; }
+  .tabs { display: flex; flex-direction: column; gap: 10px; }
+  .tablbl { font: 600 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  [hidden] { display: none !important; }
+  .bom { margin: 0; padding-left: 18px; font: 400 12px var(--mono); color: var(--ink); display: flex; flex-direction: column; gap: 3px; }
+  fieldset, details { border: 0; margin: 0; padding: 0; min-width: 0; }
+  legend, summary { font: 600 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 0; }
+  summary { cursor: pointer; }
+  .grid { display: grid; grid-template-columns: 1fr 140px; gap: 8px 10px; align-items: center; margin-top: 8px; }
+  .grid label { color: var(--ink); }
+  .grid .hint { grid-column: 1 / -1; color: var(--muted); font-size: 12px; margin-top: -4px; }
+  .grid .wide { grid-column: 1 / -1; }
+  input[type=number], input[type=text], select {
+    width: 100%; font: 400 13px var(--mono); padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--field); color: var(--ink); min-width: 0;
+  }
+  select { font-family: var(--sans); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; justify-self: end; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .stage { position: relative; background: var(--view); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  #gl { display: block; width: 100%; height: min(60vh, 560px); min-height: 280px; touch-action: none; cursor: grab; }
+  .viewbtns { position: absolute; left: 10px; top: 10px; display: flex; gap: 4px; flex-wrap: wrap; }
+  .viewbtns button, .btn {
+    font: 500 12px var(--sans); padding: 5px 9px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink); cursor: pointer;
+  }
+  .stage .status { position: absolute; right: 10px; bottom: 8px; font: 400 11px var(--mono); color: var(--muted); }
+  .stage .legend { position: absolute; left: 10px; bottom: 8px; font: 400 11px var(--mono); color: var(--muted); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-size: 13px; padding: 9px 14px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+  .tile { padding: 10px 12px; }
+  .tile b { display: block; font: 500 17px var(--mono); font-variant-numeric: tabular-nums; }
+  .tile span { color: var(--muted); font-size: 12px; }
+  .info { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .info h2 { margin: 0; font: 600 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .note { color: var(--muted); margin: 0; max-width: 75ch; }
+  .warns { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .warns li { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+  .tablewrap { overflow-x: auto; max-height: 260px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; font: 400 12px var(--mono); font-variant-numeric: tabular-nums; }
+  th, td { padding: 4px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: 500; }
+  th:first-child, td:first-child { text-align: left; }
+  #fatal { display: none; padding: 14px; background: var(--warn-bg); color: var(--warn); border-radius: 8px; }
+  @media (max-width: 860px) {
+    .app { grid-template-columns: minmax(0, 1fr); }
+    .right { position: static; order: -1; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<header>
+  <h1>Brain Matrix Generator</h1>
+  <p>Choose a fixed block or a sliding-halves model for the slicing plane you need, set the specimen, slice thickness and rod length, then download the printable STL files. Every setting updates the model live.</p>
+</header>
+<div id="fatal" role="alert"></div>
+<div class="app">
+  <form class="panel controls" id="controls" onsubmit="return false">
+    <div class="tabs" id="axisseg" role="group" aria-label="Model type and slicing plane"></div>
+    <div id="fields" style="display:flex;flex-direction:column;gap:16px"></div>
+    <div class="actions">
+      <button class="btn primary" type="button" id="dl">Download STL</button>
+      <button class="btn" type="button" id="dlset">Save settings</button>
+      <button class="btn" type="button" id="reset">Reset</button>
+    </div>
+    <p class="note" id="dlnote"></p>
+  </form>
+  <div class="right">
+    <div class="stage">
+      <canvas id="gl" aria-label="3D preview of the matrix"></canvas>
+      <div class="viewbtns" id="viewbtns">
+        <button type="button" data-v="iso">Iso</button><button type="button" data-v="top">Top</button>
+        <button type="button" data-v="front">Front</button><button type="button" data-v="side">Side</button>
+        <button type="button" data-v="ghost" aria-pressed="false">Show specimen</button>
+      </div>
+      <div class="legend" id="legend">drag: rotate · wheel: zoom · shift-drag: pan</div>
+      <div class="status" id="status">starting engine…</div>
+    </div>
+    <div class="tiles" id="tiles"></div>
+    <div class="panel info">
+      <h2>How this model works</h2>
+      <p class="note" id="howto"></p>
+      <div id="bomwrap" hidden><h2>Parts list</h2><ul class="bom" id="bom"></ul></div>
+      <ul class="warns" id="warns"></ul>
+    </div>
+    <div class="panel info">
+      <h2>Cut positions</h2>
+      <div class="tablewrap"><table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table></div>
+    </div>
+  </div>
+</div>
+<script src="../shared/vendor/three.min.js"></script>
+<script src="engine.js"></script>
+<script src="manifold.js"></script>
+<script src="app.js"></script>
+<script src="../shared/nav.js"></script>
+</body>
+</html>

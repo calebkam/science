@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Bondline Dock</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="../shared/vendor/three.min.js"></script>
+<script src="../shared/theme.js"></script>
+<style>
+/* Layout: a bench instrument. Step rail on top, controls left, 3D stage right. */
+:root{
+  --bg:#1A1918; --panel:#232220; --line:#3A3835; --fg:#ECE8E1; --muted:#9A958B;
+  --accent:#D97757; --accent-soft:rgba(217,119,87,.16); --accent-fg:#1F0E07; --paper:#2B2926;
+  --stage:#151413; --warn:#E6A33D; --danger:#F27C71; --good:#6CCB8A;
+  --ui:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#F0EEE6; --panel:#FAF9F5; --line:#DDD9CC; --fg:#1F1E1D; --muted:#6B665C;
+  --accent:#C15F3C; --accent-soft:rgba(193,95,60,.12); --accent-fg:#FFFFFF; --paper:#FFFFFF;
+  --stage:#EDEAE1; --warn:#B26A00; --danger:#B83227; --good:#1F7A3D;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 var(--ui);
+  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#shell{height:100%;min-height:600px;display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px}
+#top{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 10px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px}
+.brand svg{width:22px;height:22px;color:var(--accent)}
+#steps{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
+.step{height:30px;border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:0 11px 0 8px;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.step .n{font:500 11px var(--mono);width:18px;height:18px;border-radius:9px;background:var(--bg);display:inline-flex;align-items:center;justify-content:center;color:var(--muted)}
+.step.done .n{background:var(--accent-soft);color:var(--accent)}
+.step.on{border-color:var(--accent);background:var(--accent-soft)}
+.step.on .n{background:var(--accent);color:var(--accent-fg)}
+.step:hover{border-color:var(--muted)}
+.btn{height:30px;padding:0 11px;border:1px solid var(--line);background:var(--paper);border-radius:6px;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}.btn:disabled{opacity:.4;cursor:default}.btn:disabled:hover{border-color:var(--line)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:500}
+.btn.sm{height:26px;padding:0 8px;font-size:12px}
+.btn.wide{width:100%}
+#main{display:grid;grid-template-columns:minmax(300px,400px) minmax(0,1fr);gap:10px;min-height:0}
+#panel{min-height:0;min-width:0;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:14px}
+#stage{position:relative;min-height:0;min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--stage);overflow:hidden}
+#paneDraw,#paneView{position:absolute;inset:0}
+#bl{width:100%;height:100%;border:0;display:block;background:var(--paper)}
+#vhost{position:absolute;inset:0}
+#vtools{position:absolute;top:8px;right:8px;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:70%}
+#vinfo{position:absolute;left:10px;bottom:8px;right:10px;font:11.5px var(--mono);color:var(--muted);pointer-events:none;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#vempty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);padding:24px;pointer-events:none}
+h2{margin:0;font-size:15px;font-weight:600}
+h3{margin:0 0 6px;font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+p{margin:0}
+.sec{display:flex;flex-direction:column;gap:8px}
+.lead{color:var(--muted)}
+.note{color:var(--muted);font-size:12px}
+.warn{color:var(--warn);font-size:12px}.bad{color:var(--danger);font-size:12px}.good{color:var(--good)}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row>label{color:var(--muted);font-size:12px;min-width:92px}
+.row input[type=number],.row input[type=text],.row select{flex:1;min-width:0;height:28px;border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:0 7px}
+.row input[type=number]{font-family:var(--mono);font-size:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.grid3 label{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)}
+.grid3 input{height:28px;border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:0 6px;font:12px var(--mono);min-width:0}
+.list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper)}
+.item{display:flex;align-items:center;gap:8px;padding:7px 9px;border-top:1px solid var(--line);cursor:pointer;min-width:0}
+.item:first-child{border-top:0}
+.item.on{background:var(--accent-soft)}
+.item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.item .fm{font:11.5px var(--mono);color:var(--muted)}
+.item input[type=text]{border:1px solid transparent;background:transparent;font-weight:500;min-width:0;flex:1;height:24px;padding:0 4px;border-radius:4px}
+.item input[type=text]:focus{border-color:var(--line);background:var(--paper)}
+.chip{font:500 10.5px var(--mono);padding:2px 7px;border-radius:10px;background:var(--bg);color:var(--muted);white-space:nowrap}
+.chip.ok{background:var(--accent-soft);color:var(--accent)}
+.sub{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-size:12px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.bar{height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.log{font:11.5px/1.5 var(--mono);color:var(--muted);max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--paper);white-space:pre-wrap}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th{text-align:left;font-weight:600;font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:4px 6px}
+td{padding:6px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+td.num,th.num{text-align:right;font-family:var(--mono)}
+tr.pick{background:var(--accent-soft);cursor:pointer}tr.sel{cursor:pointer}tr.sel:hover{background:var(--accent-soft)}
+.modes{display:flex;flex-direction:column;gap:8px}
+.mode{display:grid;grid-template-columns:112px minmax(0,1fr);gap:10px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--paper);cursor:pointer;min-width:0}
+.mode.on{border-color:var(--accent);background:var(--accent-soft)}
+.mode img{width:112px;height:84px;object-fit:cover;border-radius:5px;background:var(--stage);display:block}
+.aff{font:500 20px var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.aff small{font-size:11px;color:var(--muted);font-weight:400;margin-left:4px}
+.seg{display:flex;gap:3px;flex-wrap:wrap}
+.seg button{height:26px;padding:0 9px;border:1px solid var(--line);background:var(--paper);border-radius:5px;font-size:12px}
+.seg button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.chk input{accent-color:var(--accent)}
+svg.plot{width:100%;height:92px;display:block;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+svg.plot path{fill:none;stroke:var(--accent);stroke-width:1.6;vector-effect:non-scaling-stroke}
+svg.plot text{font:10px var(--mono);fill:var(--muted)}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:max(14px,env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:7px 12px;border-radius:8px;font-size:12px;z-index:9;max-width:90vw}
+#toast[hidden]{display:none}
+textarea.paste{width:100%;min-height:90px;border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:6px 8px;font:11.5px/1.4 var(--mono)}
+details summary{cursor:pointer;color:var(--muted);font-size:12px}
+@media (max-width:900px){
+  html,body{height:auto}
+  #shell{height:auto;min-height:0;display:flex;flex-direction:column}
+  #main{display:flex;flex-direction:column}
+  #panel{overflow:visible}
+  #stage{height:70vh;min-height:360px;order:-1}
+  .step .t{display:none}.step.on .t{display:inline}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="shell">
+  <header id="top">
+    <a class="brand" href="../" title="All tools" style="color:inherit;text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/><path d="M12 3v6M4.2 16.5L9.4 13.5M19.8 16.5L14.6 13.5" stroke-width="1.4"/></svg>Bondline Dock</a>
+    <nav id="steps" aria-label="Workflow"></nav>
+    <button id="b-theme" class="btn" title="Switch light / dark">Theme</button>
+  </header>
+  <div id="main">
+    <aside id="panel" aria-live="polite"></aside>
+    <main id="stage">
+      <div id="paneDraw"><iframe id="bl" title="Bondline structure editor"></iframe></div>
+      <div id="paneView" hidden>
+        <div id="vhost"></div>
+        <div id="vempty" hidden></div>
+        <div id="vtools"></div>
+        <div id="vinfo"></div>
+      </div>
+    </main>
+  </div>
+</div>
+<div id="toast" hidden></div>
+<script src="chem.js"></script>
+<script src="dock.js"></script>
+<script src="viewer.js"></script>
+<script src="app.js"></script>
+<script src="../shared/nav.js"></script>
+</body>
+</html>
+
