@@ -362,6 +362,8 @@ function panelDraw() {
   const box = h('div', { cls: 'sec' });
   box.append(h('h2', { text: 'Draw a ligand' }),
     h('p', { cls: 'lead', text: 'Draw with Bondline on the right. Every connected structure on the page appears below as you draw. Add the ones you want to dock.' }));
+  box.append(h('ol', { cls: 'wf' }, ...['Draw in Bondline', '3D build and minimise', 'Load a target, set the pocket', 'Dock and read kJ/mol'].map((t, i) => h('li', {}, h('b', { text: String(i + 1) }), t))),
+    h('p', { cls: 'note', text: 'Bondline is loaded from the Bondline tool in this site. Replace that file and Dock follows. Scores are Vina-style estimates for ranking and exploration, not AutoDock Vina itself.' }));
   if (BL.err) box.append(h('p', { cls: 'bad', text: BL.err }));
   box.append(h('div', { cls: 'sec' }, h('h3', { text: 'On the page now' }), h('div', { id: 'liveBox' })));
   box.append(h('div', { cls: 'sec' }, h('h3', { text: 'Ligand library' }), libraryList(),

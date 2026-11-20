@@ -3,7 +3,7 @@
 window.CP_VERSIONS = {
   site: '0.1',
   'bondline': '0.1 beta',
-  'dock': '0.1 beta',
+  'dock': '0.2 beta',
   'positioning-kit': '0.2 beta',
   'brain-matrix': '0.2 beta'
 };
