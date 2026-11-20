@@ -58,7 +58,7 @@ code{font:12.5px var(--mono);background:var(--bg);padding:1px 5px;border-radius:
 <div class="wrap">
   <header>
     <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/><path d="M12 3v6M4.2 16.5L9.4 13.5M19.8 16.5L14.6 13.5" stroke-width="1.4"/></svg>Lab Tools <span class="ver" id="site-ver"></span></div>
-    <button class="theme" id="theme" type="button">Theme</button>
+    <button class="theme" id="theme" type="button">Light mode</button>
   </header>
 
   <section class="hero">
@@ -108,7 +108,17 @@ for (const g of GROUPS) {
   groups.append(sec);
 }
 const sv = (window.CP_VERSIONS || {}).site; if (sv) document.getElementById('site-ver').textContent = 'v' + sv; else document.getElementById('site-ver').remove();
-document.getElementById('theme').addEventListener('click', () => window.CPTheme.toggle());
+/* If shared/theme.js did not load (for example the shared folder was not uploaded), fall back to a local copy of its logic so this page still works. */
+if (!window.CPTheme) {
+  const R = document.documentElement, K = 'cp-theme', read = () => { try { const v = localStorage.getItem(K); return v === 'light' ? 'light' : 'dark'; } catch (e) { return 'dark'; } };
+  R.dataset.theme = read();
+  window.CPTheme = { get: () => R.dataset.theme, set(v) { R.dataset.theme = v; try { localStorage.setItem(K, v); } catch (e) {} window.dispatchEvent(new Event('cp-theme')); }, toggle() { this.set(this.get() === 'dark' ? 'light' : 'dark'); } };
+  console.warn('shared/theme.js did not load: check that the shared folder is in the repo root.');
+}
+const themeBtn = document.getElementById('theme');
+const syncTheme = () => { const dark = window.CPTheme.get() === 'dark'; themeBtn.textContent = dark ? 'Light mode' : 'Dark mode'; themeBtn.title = dark ? 'Switch to light mode' : 'Switch to dark mode'; };
+themeBtn.addEventListener('click', () => window.CPTheme.toggle());
+window.addEventListener('cp-theme', syncTheme); syncTheme();
 </script>
 </body>
 </html>
