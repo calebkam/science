@@ -7,6 +7,7 @@
 <meta name="description" content="Browser-based tools for drawing and docking molecules and for designing 3D-printable anatomy positioning kits and brain slicing matrices. Everything runs locally in your browser.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <script src="shared/theme.js"></script>
+<script src="shared/versions.js"></script>
 <meta name="color-scheme" content="dark light">
 <style>
 :root{
@@ -33,6 +34,7 @@ header{display:flex;align-items:center;gap:10px;justify-content:space-between;fl
 .hero{padding:52px 0 34px;max-width:720px}
 .hero h1{margin:0 0 12px;font-size:clamp(28px,5vw,42px);line-height:1.12;letter-spacing:-.02em;font-weight:600;text-wrap:balance}
 .hl{color:var(--accent)}
+.ver{font:500 11.5px/1 var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:10px;padding:4px 8px;margin-left:4px}
 .hero p{margin:0;color:var(--muted);font-size:17px;max-width:60ch}
 h2{margin:0 0 12px;font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .grp+.grp{margin-top:30px}
@@ -61,7 +63,7 @@ code{font:12.5px var(--mono);background:var(--bg);padding:1px 5px;border-radius:
 <body>
 <div class="wrap">
   <header>
-    <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/><path d="M12 3v6M4.2 16.5L9.4 13.5M19.8 16.5L14.6 13.5" stroke-width="1.4"/></svg>Lab Tools</div>
+    <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/><path d="M12 3v6M4.2 16.5L9.4 13.5M19.8 16.5L14.6 13.5" stroke-width="1.4"/></svg>Lab Tools <span class="ver" id="site-ver"></span></div>
     <button class="theme" id="theme" type="button">Theme</button>
   </header>
 
@@ -119,11 +121,12 @@ for (const g of GROUPS) {
     const live = !!t.href, el = document.createElement(live ? 'a' : 'div'); el.className = 'card' + (live ? '' : ' soon'); if (live) el.href = t.href;
     const svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[t.icon] || ICONS.dock) + '</svg>';
     el.innerHTML = '<div class="ic">' + svg + '</div><h3></h3><p></p><div class="foot"><span></span><span class="chip"></span></div>';
-    el.querySelector('h3').textContent = t.name; el.querySelector('p').textContent = t.text; el.querySelector('.foot span').textContent = t.tag;
+    el.querySelector('h3').textContent = t.name; el.querySelector('p').textContent = t.text; const v = (window.CP_VERSIONS || {})[t.href.replace(/\/$/, '')]; el.querySelector('.foot span').textContent = t.tag + (v ? ' \u00b7 v' + v : '');
     const chip = el.querySelector('.chip'); chip.textContent = live ? 'Open' : 'Coming soon'; if (!live) chip.classList.add('off'); box.append(el);
   }
   groups.append(sec);
 }
+const sv = (window.CP_VERSIONS || {}).site; if (sv) document.getElementById('site-ver').textContent = 'v' + sv; else document.getElementById('site-ver').remove();
 document.getElementById('theme').addEventListener('click', () => window.CPTheme.toggle());
 </script>
 </body>
