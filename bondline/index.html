@@ -1485,7 +1485,7 @@ $('#al-line').onclick=lineUp;
   try{if(localStorage.getItem('bondline.grid')==='1'){opt.grid=true;$('#o-grid').checked=true}}catch(e){}
   let loaded=false;try{const s=JSON.parse(localStorage.getItem('bondline.v1')||'null');if(s&&s.o&&Object.keys(s.o).length){S=s;loaded=true}}catch(e){}
   buildRail();buildTpl();touch();
-  if(!loaded)exSN2();
+  if(!loaded)newPage(); /* blank slate on first start; the Examples menu still has the demos */
   H=[JSON.stringify(S)];hi=0;
   setTool('select');
   requestAnimationFrame(fitView);
