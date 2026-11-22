@@ -9,6 +9,7 @@ Browser-based tools in one repo. Static files only: no build step, no server cod
 | Bondline Dock | `dock/` | Draw → 3D → minimise → define pocket → dock; kJ/mol, pose images |
 | Positioning Kit Generator | `positioning-kit/` | Parametric rests for a head or limb; 3D preview and STL download |
 | Brain Matrix Generator | `brain-matrix/` | Brain slicing matrices (fixed block or sliding halves); STL download |
+| Layerline Slicer | `slicer/` | Draft 3D print slicer for the Bambu Lab H2S, P2S and Elegoo Centauri Carbon: STL/OBJ/3MF, layer preview, G-code export |
 | Shared | `shared/` | `theme.js`, `nav.js`, and one copy of three.js r128 used by every 3D tool |
 
 ## Run locally
@@ -47,6 +48,8 @@ All version numbers live in `shared/versions.js`: one per tool plus `site` for t
 ## Third-party code
 
 - three.js r128 (MIT), `shared/vendor/three.min.js`.
+- `slicer/printers.js` holds machine start/end G-code taken from Bambu Studio (Bambu Lab H2S, P2S) and OrcaSlicer (Elegoo Centauri Carbon) profiles, which are AGPL-3.0. Keep the notice at the top of the file, and consider that licence when you choose one for the repo.
+- `slicer/vendor/clipper.js` is Clipper 6.4.2 (Angus Johnson, Boost Software License). Keep its header if you redistribute it.
 - `brain-matrix/manifold.js` and `manifold.wasm` are a WebAssembly build of the Manifold geometry library, which is Apache-2.0. Keep its notice with the files if you redistribute them.
 - Fonts (IBM Plex, Inter, JetBrains Mono, Schibsted Grotesk) load from Google Fonts.
 

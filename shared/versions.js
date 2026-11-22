@@ -5,5 +5,6 @@ window.CP_VERSIONS = {
   'bondline': '0.3 beta',
   'dock': '0.3 beta',
   'positioning-kit': '0.2 beta',
-  'brain-matrix': '0.2 beta'
+  'brain-matrix': '0.2 beta',
+  'slicer': '0.3 beta'
 };

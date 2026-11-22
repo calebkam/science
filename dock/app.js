@@ -269,7 +269,7 @@ function drawSurface(V) {
     const m = 20, lo = [0, 1, 2].map(q => b.c[q] - b.s[q] / 2 - m), hi = [0, 1, 2].map(q => b.c[q] + b.s[q] / 2 + m), rec = A.rec, pts = [], rad = [], cls = [], CL = { N: 1, O: 2, S: 3 };
     for (let i = 0; i < rec.n; i++) { const t = rec.meta[i]; if (t.el === 'H') continue; const x = rec.X[3*i], y = rec.X[3*i+1], z = rec.X[3*i+2];
       if (x < lo[0] - 5 || x > hi[0] + 5 || y < lo[1] - 5 || y > hi[1] + 5 || z < lo[2] - 5 || z > hi[2] + 5) continue; pts.push(x, y, z); rad.push(VDW[t.el] || 1.7); cls.push(CL[t.el] || 0); }
-    V.surface('surf', new Float32Array(pts), new Float32Array(rad), lo, hi, { h: 0.7, cls: Uint8Array.from(cls) });
+    V.surface('surf', new Float32Array(pts), new Float32Array(rad), lo, hi, { h: 0.6, cls: Uint8Array.from(cls) });
     if (V.layers.surf) V.layers.surf.__key = key; const tt = $('#toast'); if (tt) tt.hidden = true;
   }, 30);
 }

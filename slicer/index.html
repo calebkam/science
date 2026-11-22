@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Layerline Slicer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="../shared/vendor/three.min.js"></script>
+<script src="../shared/theme.js"></script>
+<script src="../shared/versions.js"></script>
+<style>
+:root{
+  --bg:#1A1918; --panel:#232220; --paper:#2B2926; --line:#3A3835; --fg:#ECE8E1; --muted:#9A958B;
+  --accent:#D97757; --accent-soft:rgba(217,119,87,.16); --accent-fg:#1F0E07;
+  --stage:#151413; --warn:#E6A33D; --danger:#F27C71; --good:#6CCB8A;
+  --ui:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif; --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#F0EEE6; --panel:#FAF9F5; --paper:#FFFFFF; --line:#DDD9CC; --fg:#1F1E1D; --muted:#6B665C;
+  --accent:#C15F3C; --accent-soft:rgba(193,95,60,.12); --accent-fg:#FFFFFF;
+  --stage:#E4E0D5; --warn:#B26A00; --danger:#B83227; --good:#1F7A3D; color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 var(--ui);padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#shell{height:100%;min-height:640px;display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 10px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px}
+.brand svg{width:22px;height:22px;color:var(--accent)}
+.printer{font:12px var(--mono);color:var(--fg);background:var(--paper);border:1px solid var(--line);border-radius:6px;height:30px;padding:0 8px;max-width:100%}
+.tabs{display:flex;gap:4px;margin-left:8px}
+.tab{height:30px;padding:0 14px;border:1px solid var(--line);background:var(--paper);border-radius:6px;font-weight:500}
+.tab[aria-selected="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.tab:disabled{opacity:.45;cursor:not-allowed}
+main{display:grid;grid-template-columns:270px minmax(0,1fr) 330px;gap:10px;min-height:0}
+aside,.stagewrap{min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+aside{overflow:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
+h2{margin:0 0 6px;font:600 10.5px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.btn{height:30px;padding:0 12px;border:1px solid var(--line);background:var(--paper);border-radius:6px}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
+.btn.sm{height:26px;padding:0 8px;font-size:12px}
+.row{display:flex;flex-wrap:wrap;gap:6px}
+.stagewrap{position:relative;overflow:hidden;background:var(--stage)}
+#stage{position:absolute;inset:0}
+#stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;left:10px;right:10px;bottom:10px;display:flex;align-items:center;gap:10px;pointer-events:none}
+.hud>*{pointer-events:auto}
+.msg{position:absolute;left:12px;top:10px;padding:5px 9px;border-radius:6px;background:var(--panel);border:1px solid var(--line);font-size:12px;color:var(--muted);max-width:70%}
+.msg.warn{color:var(--warn);border-color:var(--warn)}
+#drop{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;color:var(--muted);text-align:center;padding:20px}
+#drop b{display:block;font-size:15px;color:var(--fg);margin-bottom:4px}
+#prev{position:absolute;right:10px;top:10px;bottom:56px;display:flex;flex-direction:column;align-items:center;gap:6px;width:34px}
+#prev input[type=range]{writing-mode:vertical-lr;direction:rtl;flex:1;accent-color:var(--accent);width:24px}
+#prevlabel{font:11px var(--mono);color:var(--muted);text-align:center;white-space:nowrap}
+#legend{position:absolute;left:10px;top:44px;display:flex;flex-direction:column;gap:3px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px}
+#legend label{display:flex;align-items:center;gap:7px;cursor:pointer}
+#legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+#objs{display:flex;flex-direction:column;gap:4px}
+.obj{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);cursor:pointer}
+.obj[aria-current="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.obj small{color:var(--muted);font:11px var(--mono)}
+.f{display:grid;grid-template-columns:1fr 86px;gap:6px 8px;align-items:center;margin:4px 0}
+.f label{color:var(--muted);font-size:12px}
+.f input,.f select{width:100%;height:26px;padding:0 6px;background:var(--paper);border:1px solid var(--line);border-radius:5px;font:12px var(--mono)}
+.f select{font-family:var(--ui)}
+.f.wide{grid-template-columns:1fr}
+.f textarea{width:100%;min-height:96px;background:var(--paper);border:1px solid var(--line);border-radius:5px;font:11px/1.4 var(--mono);padding:6px;resize:vertical}
+details{border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:0 10px}
+details>summary{cursor:pointer;padding:8px 0;font-weight:600;font-size:12.5px}
+details[open]>summary{border-bottom:1px solid var(--line);margin-bottom:6px}
+.u{color:var(--muted);font-size:11px;margin-left:3px}
+.stat{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font:12px var(--mono)}
+.stat span:nth-child(odd){color:var(--muted)}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.note{color:var(--muted);font-size:12px;line-height:1.5}
+.note.warn{color:var(--warn)}
+@media (max-width:1100px){
+  main{grid-template-columns:240px minmax(0,1fr)}
+  #right{grid-column:1/-1}
+  #shell{height:auto}.stagewrap{min-height:420px}
+}
+@media (max-width:700px){main{grid-template-columns:1fr}.stagewrap{min-height:380px;order:-1}}
+</style>
+</head>
+<body>
+<div id="shell">
+  <header>
+    <div class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M4 8l8-4 8 4-8 4z"/><path d="M4 12l8 4 8-4"/><path d="M4 16l8 4 8-4"/></svg>Layerline Slicer</div>
+    <select id="printer" class="printer" aria-label="Printer"></select>
+    <div class="tabs" role="tablist">
+      <button class="tab" id="tab-prep" role="tab" aria-selected="true">Prepare</button>
+      <button class="tab" id="tab-prev" role="tab" aria-selected="false" disabled>Preview</button>
+    </div>
+  </header>
+  <main>
+    <aside id="left">
+      <section>
+        <h2>Models</h2>
+        <div class="row">
+          <label class="btn primary" style="display:inline-flex;align-items:center">Add model<input id="file" type="file" accept=".stl,.obj,.3mf" multiple hidden></label>
+          <button class="btn" id="addCube" title="20 mm calibration cube">Cube</button>
+        </div>
+        <div id="objs" style="margin-top:8px"></div>
+      </section>
+      <section id="xform" hidden>
+        <h2>Selected model</h2>
+        <div class="f"><label>X position</label><input id="t-x" type="number" step="1"></div>
+        <div class="f"><label>Y position</label><input id="t-y" type="number" step="1"></div>
+        <div class="f"><label>Scale <span class="u">%</span></label><input id="t-s" type="number" step="5" min="1"></div>
+        <div class="f"><label>Rotate X / Y / Z <span class="u">deg</span></label><span></span></div>
+        <div class="row" style="margin-bottom:4px"><button class="btn sm" data-rot="x-">X &minus;90</button><button class="btn sm" data-rot="x+">X +90</button><button class="btn sm" data-rot="y-">Y &minus;90</button><button class="btn sm" data-rot="y+">Y +90</button><button class="btn sm" data-rot="z-">Z &minus;90</button><button class="btn sm" data-rot="z+">Z +90</button></div>
+        <div class="row"><button class="btn sm" id="flat">Lay flat</button><button class="btn sm" id="dup">Duplicate</button><button class="btn sm" id="del">Delete</button></div>
+        <div class="stat" id="dims" style="margin-top:8px"></div>
+      </section>
+      <section><div class="row"><button class="btn sm" id="arrange">Arrange all</button><button class="btn sm" id="resetView">Reset view</button></div></section>
+      <p class="note">Drag a model on the plate to move it. Drag empty space to orbit, right-drag or shift-drag to pan, scroll to zoom. STL, OBJ and 3MF files are supported; they stay in your browser.</p>
+    </aside>
+    <div class="stagewrap">
+      <div id="stage"></div>
+      <div class="msg" id="msg" hidden></div>
+      <div id="drop"><div><b>Drop an STL, OBJ or 3MF here</b>or use Add model. Units are millimetres.</div></div>
+      <div id="legend" hidden></div>
+      <div id="prev" hidden><span id="prevlabel"></span><input id="layer" type="range" min="1" max="1" value="1" orient="vertical" aria-label="Layer"></div>
+    </div>
+    <aside id="right">
+      <section>
+        <h2>Slice</h2>
+        <button class="btn primary" id="slice" style="width:100%;height:36px">Slice plate</button>
+        <div class="bar" style="margin-top:8px" id="bar" hidden><i></i></div>
+        <div class="note" id="status" style="margin-top:6px"></div>
+        <div class="stat" id="stats" style="margin-top:8px" hidden></div>
+        <button class="btn" id="export" style="width:100%;margin-top:8px" disabled>Export G-code</button>
+      </section>
+      <section>
+        <h2>Profile</h2>
+        <div class="f"><label>Process</label><select id="p-process"></select></div>
+        <div class="f"><label>Filament</label><select id="p-fil"></select></div>
+        <div class="note" style="margin-bottom:8px">Filament values are typical starting points. Check your spool's recommended range.</div>
+        <div id="settings"></div>
+        <div class="row" style="margin-top:8px"><button class="btn sm" id="reset">Reset all settings</button></div>
+      </section>
+      <p class="note warn" id="pnote"></p>
+    </aside>
+  </main>
+</div>
+<script src="vendor/clipper.js"></script>
+<script src="printers.js"></script>
+<script src="engine.js"></script>
+<script src="threemf.js"></script>
+<script src="app.js"></script>
+<script src="../shared/nav.js"></script>
+</body>
+</html>
