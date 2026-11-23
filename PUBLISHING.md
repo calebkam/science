@@ -5,7 +5,7 @@
    ```
    git init -b main
    git add .
-   git commit -m "Lab Tools: Bondline, Bondline Dock, Positioning Kit, Brain Matrix"
+   git commit -m "Lab Tools: Bondline, RapidDock, Positioning Kit, Brain Matrix"
    git remote add origin https://github.com/<your-user>/science.git
    git push -u origin main
    ```

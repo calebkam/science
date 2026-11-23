@@ -27,7 +27,7 @@ Push the repo, then Settings → Pages → "Deploy from a branch" → `main` →
 
 ## Version numbers
 
-All version numbers live in `shared/versions.js` (all Beta 0.1.1 for now): one per tool plus `site` for the home page. Add a matching entry to `changelog/index.html` with every release. Bump the number when you change that tool and commit. Each tool page shows its number beside the theme button, and the home page shows its own number next to the title and each tool's number on its card.
+All version numbers live in `shared/versions.js` (all Beta 0.5 for now): one per tool plus `site` for the home page. Add a matching entry to `changelog/index.html` with every release. Bump the number when you change that tool and commit. Each tool page shows its number beside the theme button, and the home page shows its own number next to the title and each tool's number on its card.
 
 ## Adding a tool
 

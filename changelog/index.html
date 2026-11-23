@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Changelog</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="../shared/theme.js"></script>
+<script src="../shared/versions.js"></script>
+<meta name="color-scheme" content="dark light">
+<style>
+:root{
+  --bg:#1A1918; --panel:#232220; --paper:#2B2926; --line:#3A3835; --fg:#ECE8E1; --muted:#9A958B;
+  --accent:#D97757; --accent-soft:rgba(217,119,87,.16); --accent-fg:#1F0E07; color-scheme:dark;
+  --ui:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif; --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+:root[data-theme="light"]{
+  --bg:#F0EEE6; --panel:#FAF9F5; --paper:#FFFFFF; --line:#DDD9CC; --fg:#1F1E1D; --muted:#6B665C;
+  --accent:#C15F3C; --accent-soft:rgba(193,95,60,.12); --accent-fg:#FFFFFF; color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 var(--ui);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:860px;margin:0 auto;padding-block:20px 56px}
+header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+header .sp{flex:1}
+.btn{height:30px;padding:0 12px;display:inline-flex;align-items:center;border:1px solid var(--line);background:var(--paper);border-radius:6px;cursor:pointer;color:inherit;font:inherit;font-size:13px;text-decoration:none}
+.btn:hover{border-color:var(--accent)}
+h1{margin:40px 0 8px;font-size:clamp(26px,4.5vw,36px);line-height:1.15;letter-spacing:-.02em;font-weight:600}
+.lead{margin:0 0 22px;color:var(--muted);max-width:62ch}
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 26px}
+.filters button{height:28px;padding:0 11px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:14px;font:500 12.5px var(--ui);cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+section.tool{margin:0 0 36px}
+section.tool>h2{display:flex;align-items:baseline;gap:10px;margin:0 0 4px;font-size:20px;font-weight:600}
+.cur{font:500 11.5px var(--mono);color:var(--accent);border:1px solid var(--accent);border-radius:10px;padding:2px 8px}
+.about{margin:0 0 14px;color:var(--muted);font-size:14px}
+.rel{border-left:2px solid var(--line);padding:0 0 14px 16px;margin-left:4px;position:relative}
+.rel::before{content:"";position:absolute;left:-6px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--bg);border:2px solid var(--accent)}
+.rel h3{margin:0 0 4px;font-size:14.5px;font-weight:600;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.rel h3 time{font:12px var(--mono);color:var(--muted);font-weight:400}
+.rel ul{margin:0;padding-left:18px;color:var(--fg)}
+.rel li{margin:2px 0;font-size:14px}
+.rel li::marker{color:var(--muted)}
+.note{color:var(--muted);font-size:13px;border:1px dashed var(--line);border-radius:8px;padding:10px 12px;margin:0 0 24px}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="btn" href="../" id="home">&larr; Home</a>
+    <span class="sp"></span>
+    <button class="btn" id="theme" type="button">Light mode</button>
+  </header>
+  <h1>Changelog</h1>
+  <p class="lead">What changed in every tool, newest first. Each tool currently reads <b>Beta 0.5</b>.</p>
+  <p class="note">Detail is fullest for RapidDock and Bondline, whose changes were tracked release by release. Earlier releases of the other tools are summarised from what the repository contains, and some version numbers before Beta 0.5 were not recorded.</p>
+  <div class="filters" id="filters" role="group" aria-label="Show"></div>
+  <div id="log"></div>
+  <footer>Version numbers live in <code>shared/versions.js</code>. Add a new entry at the top of <code>LOG</code> in this page when you change a tool.</footer>
+</div>
+<script>
+/* Newest release first inside each tool. rel = [heading, date, [items]] */
+const LOG = [
+  { id: 'site', name: 'Home page', about: 'Landing page with a card for each tool.', rel: [
+    ['Beta 0.5', '2026-11-24', ['New Changelog page, linked from the footer and from every version chip.', 'All version numbers reset to Beta 0.5 and shown the same way on every page.', 'RapidDock card renamed (was Bondline Dock).']],
+    ['0.1', 'Nov 2026', ['First home page: cards for each tool, grouped as Molecules and Anatomy and 3D printing; shared dark/light theme that is remembered.']] ] },
+  { id: 'bondline', name: 'Bondline', about: '2D chemical structure editor.', rel: [
+    ['Beta 0.5', '2026-11-24', ['Version label only. No change to the editor.']],
+    ['0.4 beta', '2026-11-23', ['Offline IUPAC naming, no network and no AI needed: chains, rings, benzene with substituents, esters, amides with N-substituents, retained names, lowest-locant numbering, alphabetised prefixes and nested brackets.', 'Fused and heterocyclic ring systems are not named offline yet; in the artifact version those can still be named by Claude.', 'Tests in bondline/test; the naming engine is bondline/iupac.js, inlined into the page.']],
+    ['Before 0.4', '2026-11-20 to 11-23', ['Version with IUPAC naming by Claude, published as its own artifact without overwriting existing ones.', 'Shared theme (dark by default), Home button, version chip.', 'Exposes molfile() so RapidDock can read the drawing.']] ] },
+  { id: 'dock', name: 'RapidDock', about: 'Draw, build in 3D, minimise, define a pocket and dock with Vina scoring. Formerly Bondline Dock.', rel: [
+    ['Beta 0.5', '2026-11-24', ['New “About the scoring (AutoDock Vina)” section on the Dock page: Vina version, term weights, how a run works, how it was checked and where it differs.', 'Version label reset to Beta 0.5.']],
+    ['0.4.2', '2026-11-24', ['Renamed from Bondline Dock to RapidDock.']],
+    ['0.4.1', '2026-11-24', ['Energy unit toggle: kcal/mol (default, shown as the large figure) or kJ/mol, remembered in the browser.', 'Console hides itself when nothing is running and reappears when a task starts; it can be pinned open.', 'Vina check: AutoDock Vina 1.2.7 is current and its scoring terms and weights match Dock exactly.', 'Found and fixed a systematic bias: grid maps read about 7 % too weak at contact. Kept poses are now re-optimised and scored with exact pair sums. Crystal pose of imatinib in 1IEP: −12.53 vs −12.51 kcal/mol in Vina; redock −13.3 vs −13.26.', 'Grid spacing default is now 0.375 Å, as in Vina. New regression test dock/test/vina.test.js.']],
+    ['0.4 beta', '2026-11-23', ['Drug-likeness panel: Lipinski rule of five, Veber, Egan, TPSA, MLOGP, ESOL solubility and a SwissADME-style radar. These are estimates.', 'Console window showing progress of 3D build, minimisation, grid building and docking.', 'AutoDock-GPU job sheet export for running outside the browser (AutoDock-GPU cannot run in a web page).', 'Extra property columns in the CSV export.']],
+    ['Before 0.4', '2026-11-20 to 11-23', ['Protein surface view rebuilt: smoother atom-coloured surface, clipping plane, flat cap on cut faces.', 'First release: draw in Bondline, build 3D, minimise, load a PDB target (1IEP example), detect or set a pocket, dock, pose images, H-bonds and contacts, CSV export.']] ] },
+  { id: 'positioning-kit', name: 'Positioning Kit Generator', about: 'Parametric rests for a head or limb lying on its uncut surface.', rel: [
+    ['Beta 0.5', '2026-11-24', ['Version label only.']],
+    ['Earlier (0.2 beta)', 'Nov 2026', ['Signed-distance models and mesher with a 3D preview; STL and ZIP download.', 'Shared theme, Home button and version chip; single shared copy of three.js.']] ] },
+  { id: 'brain-matrix', name: 'Brain Matrix Generator', about: 'Fixed-block or sliding-halves brain slicing matrices.', rel: [
+    ['Beta 0.5', '2026-11-24', ['Version label only.']],
+    ['Earlier (0.2 beta)', 'Nov 2026', ['Coronal, sagittal and axial matrices from specimen size, slice thickness and rod length; STL download.', 'Geometry cuts use a WebAssembly Manifold boolean kernel.', 'Shared theme, Home button and version chip.']] ] },
+  { id: 'slicer', name: 'Layerline Slicer', about: 'Draft 3D print slicer for Bambu Lab H2S and P2S and Elegoo Centauri Carbon.', rel: [
+    ['Beta 0.5', '2026-11-24', ['Version label only.']],
+    ['Earlier (0.3 beta)', '2026-11-20 to 11-22', ['Load STL, OBJ or 3MF; organic supports; layer-by-layer preview; G-code export with machine start and end code from the vendor profiles.', 'Shared theme, Home button and version chip.']] ] }
+];
+const $ = s => document.querySelector(s), esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let show = 'all';
+function render() {
+  $('#log').innerHTML = LOG.filter(t => show === 'all' || t.id === show).map(t => {
+    const v = (window.CP_VERSIONS || {})[t.id];
+    return '<section class="tool"><h2>' + esc(t.name) + (v ? '<span class="cur">' + esc(window.cpVer ? window.cpVer(v) : v) + '</span>' : '') + '</h2><p class="about">' + esc(t.about) + '</p>' +
+      t.rel.map(r => '<div class="rel"><h3>' + esc(r[0]) + '<time>' + esc(r[1]) + '</time></h3><ul>' + r[2].map(i => '<li>' + esc(i) + '</li>').join('') + '</ul></div>').join('') + '</section>';
+  }).join('');
+}
+$('#filters').innerHTML = [['all', 'All']].concat(LOG.map(t => [t.id, t.name])).map(f => '<button type="button" data-f="' + f[0] + '" aria-pressed="' + (f[0] === show) + '">' + esc(f[1]) + '</button>').join('');
+$('#filters').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; show = b.dataset.f; document.querySelectorAll('#filters button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); render(); });
+render();
+if (!window.CPTheme) { const R = document.documentElement; R.dataset.theme = 'dark'; window.CPTheme = { get: () => R.dataset.theme, toggle() { R.dataset.theme = R.dataset.theme === 'dark' ? 'light' : 'dark'; window.dispatchEvent(new Event('cp-theme')); } }; }
+const tb = $('#theme'), sync = () => { const d = window.CPTheme.get() === 'dark'; tb.textContent = d ? 'Light mode' : 'Dark mode'; };
+tb.addEventListener('click', () => window.CPTheme.toggle()); window.addEventListener('cp-theme', sync); sync();
+</script>
+</body>
+</html>

@@ -191,10 +191,31 @@ async function buildGrids(rec, box, typeKeys, opt = {}, onProgress, isCancelled)
     if (ix % 4 === 0) { if (onProgress) onProgress((ix + 1) / dim[0]); await tick(); }
   }
   const idx = {}; typeKeys.forEach((k, i) => idx[k] = i);
-  return { lo, dim, sp, inv: 1 / sp, maps, idx, box, nNear: near.length };
+  return { lo, dim, sp, inv: 1 / sp, maps, idx, box, nNear: near.length, rec, near };
 }
 
 const _s = new Float64Array(4);
+/* exact (grid-free) per-atom Vina pair sum with analytic gradient. Trilinear maps under-resolve the 0.5 A-wide gauss1 term
+   (about 7 % too weak at contact), so final poses are re-optimised and scored with this instead. */
+function exactCells(G) {
+  if (G._cells) return G._cells; const rec = G.rec, cs = CUT, cell = new Map();
+  for (const i of G.near) { const k = Math.floor(rec.X[3*i] / cs) + ',' + Math.floor(rec.X[3*i+1] / cs) + ',' + Math.floor(rec.X[3*i+2] / cs); let c = cell.get(k); if (!c) cell.set(k, c = []); c.push(i); }
+  return G._cells = cell;
+}
+function exactAtom(G, T, px, py, pz) {
+  const rec = G.rec, cell = exactCells(G), cx = Math.floor(px / CUT), cy = Math.floor(py / CUT), cz = Math.floor(pz / CUT);
+  let E = 0, gx = 0, gy = 0, gz = 0;
+  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) { const L = cell.get((cx + a) + ',' + (cy + b) + ',' + (cz + c)); if (!L) continue;
+    for (const j of L) { const dx = px - rec.X[3*j], dy = py - rec.X[3*j+1], dz = pz - rec.X[3*j+2], r2 = dx*dx + dy*dy + dz*dz; if (r2 >= CUT * CUT) continue;
+      const r = Math.sqrt(r2) || 1e-9, d = r - T.r - rec.R[j], g1 = Math.exp(-((d / 0.5) ** 2)), g2 = Math.exp(-(((d - 3) / 2) ** 2));
+      let e = W.g1 * g1 + W.g2 * g2, de = W.g1 * (-8 * d * g1) + W.g2 * (-(d - 3) / 2 * g2);
+      if (d < 0) { e += W.rep * d * d; de += 2 * W.rep * d; }
+      if (T.hyd && rec.HY[j]) { if (d <= 0.5) e += W.hyd; else if (d < 1.5) { e += W.hyd * (1.5 - d); de -= W.hyd; } }
+      if ((T.don && rec.AC[j]) || (T.acc && rec.DN[j])) { if (d <= -0.7) e += W.hb; else if (d < 0) { e += W.hb * (-d / 0.7); de -= W.hb / 0.7; } }
+      E += e; const f = de / r; gx += f * dx; gy += f * dy; gz += f * dz; } }
+  _s[0] = E; _s[1] = gx; _s[2] = gy; _s[3] = gz;
+}
+
 /* trilinear sample: _s = [E, dE/dx, dE/dy, dE/dz]; out-of-box atoms feel a quadratic wall */
 function sample(G, m, px, py, pz) {
   let fx = (px - G.lo[0]) * G.inv, fy = (py - G.lo[1]) * G.inv, fz = (pz - G.lo[2]) * G.inv, pen = 0, gx = 0, gy = 0, gz = 0;
@@ -265,7 +286,7 @@ function qnorm(q) { const h = Math.hypot(q[0], q[1], q[2], q[3]) || 1; return [q
 
 /* ---------------- pose scoring ---------------- */
 /* pose vector: [tx,ty,tz, qw,qx,qy,qz, torsion angles...] */
-function makeScorer(lig, G) {
+function makeScorer(lig, G, exact) {
   const n = lig.n, nt = lig.nt, nd = 6 + nt, pos = new Float64Array(3 * n), gat = new Float64Array(3 * n), tmp = new Float64Array(3 * n);
   const tIdx = lig.T.map(t => t ? G.idx[t.key] : -1);
   const heavy = lig.heavy;
@@ -282,7 +303,7 @@ function makeScorer(lig, G) {
   const sc = { inter: 0, intra: 0 };
   function evaluate(x, g) {
     place(x, false); gat.fill(0); let Ei = 0;
-    for (let m = 0; m < heavy.length; m++) { const i = heavy[m]; sample(G, G.maps[tIdx[i]], pos[3*i], pos[3*i+1], pos[3*i+2]); Ei += _s[0]; gat[3*i] += _s[1]; gat[3*i+1] += _s[2]; gat[3*i+2] += _s[3]; }
+    for (let m = 0; m < heavy.length; m++) { const i = heavy[m]; if (exact) exactAtom(G, lig.T[i], pos[3*i], pos[3*i+1], pos[3*i+2]); else sample(G, G.maps[tIdx[i]], pos[3*i], pos[3*i+1], pos[3*i+2]); Ei += _s[0]; gat[3*i] += _s[1]; gat[3*i+1] += _s[2]; gat[3*i+2] += _s[3]; }
     const Ea = intraEnergy(lig, pos, g ? gat : null); sc.inter = Ei; sc.intra = Ea;
     if (g) {
       let gx = 0, gy = 0, gz = 0, tx = 0, ty = 0, tz = 0;
@@ -366,11 +387,13 @@ async function dockLigand(lig, G, opt = {}, cb = {}) {
   const modes = [];
   for (const c of cands) { if (modes.length >= maxModes) break; if (c.E - cands[0].E > range) break;
     if (modes.every(m => rmsdPos(c.p, m.p, lig.heavy) >= 1.0)) modes.push(c); }
-  /* final exact bookkeeping per mode */
-  const nrot = lig.nt;
+  /* final exact re-optimisation + scoring (grid-free) */
+  const nrot = lig.nt, ex = makeScorer(lig, G, true);
+  if (G.rec) for (const m of modes) { const r = ex.localOpt(m.x, 60); m.x = r.x; m.E = r.E; m.p = Float64Array.from(ex.place(m.x, false)); }
+  const fin = G.rec ? ex : sc;
   const out = modes.map((m, k) => {
-    sc.evaluate(m.x, null); const inter = sc.sc.inter, intra = sc.sc.intra, aff = (inter + intra - lig.intraRef) / (1 + W.rot * nrot);
-    const all = Float64Array.from(sc.place(m.x, true)); return { x: m.x, E: m.E, inter, intra, kcal: aff, kJ: aff * KCAL, pos: all, p: m.p };
+    fin.evaluate(m.x, null); const inter = fin.sc.inter, intra = fin.sc.intra, aff = (inter + intra - lig.intraRef) / (1 + W.rot * nrot);
+    const all = Float64Array.from(fin.place(m.x, true)); return { x: m.x, E: m.E, inter, intra, kcal: aff, kJ: aff * KCAL, pos: all, p: m.p };
   });
   out.sort((a, b) => a.kcal - b.kcal);
   out.forEach((m, k) => { m.rank = k + 1; m.rmsd = k === 0 ? 0 : rmsdPos(m.p, out[0].p, lig.heavy); });

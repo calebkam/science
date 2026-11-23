@@ -15,11 +15,18 @@ function h(tag, props, ...kids) {
 }
 const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
 /* ---- console: every step writes a timestamped line here ---- */
-const CON = { lines: [], open: false, prog: -1 };
+const CON = { lines: [], open: false, prog: -1, pinned: false, t: 0 };
+/* energy unit: kcal/mol by default (Vina's own unit), kJ/mol on request; remembered per browser */
+let UNIT = 'kcal'; try { if (localStorage.getItem('cp-dock-unit') === 'kJ') UNIT = 'kJ'; } catch (e) {}
+const uVal = m => UNIT === 'kJ' ? m.kJ : m.kcal, uTxt = m => UNIT === 'kJ' ? f1(m.kJ) : m.kcal.toFixed(2), uName = () => UNIT === 'kJ' ? 'kJ/mol' : 'kcal/mol';
+const uAlt = m => UNIT === 'kJ' ? m.kcal.toFixed(2) + ' kcal/mol' : f1(m.kJ) + ' kJ/mol';
+/* console shows only while something runs; hides a few seconds after the last message unless pinned open */
+function conTouch() { const c = $('#con'); if (!c) return; c.classList.remove('hide'); clearTimeout(CON.t);
+  CON.t = setTimeout(() => { if (!A.running && !CON.pinned) c.classList.add('hide'); }, 4000); }
 function clog(msg, kind) {
   const d = new Date(), ts = d.toTimeString().slice(0, 8);
   CON.lines.push({ ts, msg: String(msg), kind: kind || '' }); if (CON.lines.length > 600) CON.lines.splice(0, CON.lines.length - 600);
-  const pre = $('#con-log'), last = $('#con-last'); if (!pre) return;
+  const pre = $('#con-log'), last = $('#con-last'); if (!pre) return; conTouch();
   const row = document.createElement('div'), s = document.createElement('span'); s.className = 'ts'; s.textContent = ts + '  ';
   const m = document.createElement('span'); if (kind) m.className = kind; m.textContent = String(msg); row.append(s, m); pre.append(row);
   while (pre.childNodes.length > 600) pre.removeChild(pre.firstChild);
@@ -36,7 +43,7 @@ const A = {
   recAtoms: null, recName: '', chains: [], selChains: new Set(), hets: [], keepHet: new Set(), rec: null, pockets: [], pocketSel: -1,
   box: null, boxMode: 'auto', example: null, results: {}, running: false, cancel: false, progress: null, log: [], pose: { id: null, mode: 0 },
   vw: { H: true, trace: true, box: true, key: true, surf: false, only: false }, keyRes: new Map(), keyNear: new Set(), keyOff: new Set(), keyDist: 4, posePts: null, viewer: null, viewerErr: '', busy: '',
-  o: { runs: 32, effort: 1, modes: 9, rangeKJ: 12.6, spacing: 0.5, sd: 100, cg: 10, step: 0.02, conf: 10, conv: true }
+  o: { runs: 32, effort: 1, modes: 9, rangeKJ: 12.6, spacing: 0.375, sd: 100, cg: 10, step: 0.02, conf: 10, conv: true }
 };
 const sel = () => A.ligs.find(l => l.id === A.sel) || null;
 const dark = () => { const t = document.documentElement.dataset.theme; return t ? t === 'dark' : matchMedia('(prefers-color-scheme:dark)').matches; };
@@ -120,7 +127,7 @@ function exportADGPU() {
   const sp = 0.375, np = b.s.map(v => { let n = Math.ceil(v / sp); return n + (n % 2); }), c = b.c.map(v => v.toFixed(3));
   const names = A.ligs.map(l => l.name.replace(/\W+/g, '_'));
   const txt = [
-    '# AutoDock-GPU job sheet from Bondline Dock',
+    '# AutoDock-GPU job sheet from RapidDock',
     '# Target: ' + (A.recName || 'target') + '   Ligands: ' + (names.join(', ') || 'none'),
     '#',
     '# AutoDock-GPU (https://github.com/forlilab/AutoDock-GPU) needs an OpenCL or CUDA GPU and uses AutoDock4 scoring,',
@@ -131,7 +138,7 @@ function exportADGPU() {
     'size    ' + b.s.map(v => v.toFixed(2)).join('  '),
     'npts    ' + np.join('  ') + '   # grid points at 0.375 A spacing, rounded up to even numbers',
     '#',
-    '# 2. Prepare files (not done here). Save the target and ligands from Bondline Dock (PDB and SDF buttons), then make PDBQT files',
+    '# 2. Prepare files (not done here). Save the target and ligands from RapidDock (PDB and SDF buttons), then make PDBQT files',
     '#    with Meeko (https://meeko.readthedocs.io), which also assigns the charges and AutoDock atom types AutoGrid needs.',
     '#',
     '# 3. Grid parameter file (target.gpf): the lines that depend on this session. Meeko or AutoDockTools writes the rest',
@@ -270,7 +277,7 @@ async function runDocking() {
     }
     A.running = false; conProgress(-1); clog('--- Docking finished: ' + ligs.length + ' ligand' + (ligs.length > 1 ? 's' : '') + ' ---', 'ok'); A.step = 'res'; const first = ligs[0] && ligs[0].l; if (first) { A.sel = first.id; A.pose = { id: first.id, mode: 0 }; }
     refreshAll();
-  } catch (e) { A.running = false; conProgress(-1); if (e.message === 'cancelled') { toast('Docking cancelled.'); } else { console.error(e); toast('Docking failed: ' + e.message, 7000); } refreshAll(); }
+  } catch (e) { A.running = false; conProgress(-1); conTouch(); if (e.message === 'cancelled') { toast('Docking cancelled.'); } else { console.error(e); toast('Docking failed: ' + e.message, 7000); } refreshAll(); }
 }
 function refRmsd(d, pos, ref) { let s = 0, n = 0; for (const i of d.heavy) { const dx = pos[3*i] - ref[i][0], dy = pos[3*i+1] - ref[i][1], dz = pos[3*i+2] - ref[i][2]; s += dx*dx + dy*dy + dz*dz; n++; } return Math.sqrt(s / n); }
 
@@ -401,7 +408,7 @@ function showPose(l, m, quiet) {
   V.dashes('hb', m.inter.hbonds.map(b => [hp[d.heavy.indexOf(b.la)], [A.rec.X[3*b.ra], A.rec.X[3*b.ra+1], A.rec.X[3*b.ra+2]]]));
   let r = 0; hp.forEach(p => { r = Math.max(r, Math.hypot(p[0]-c[0], p[1]-c[1], p[2]-c[2])); });
   drawKey(V); V.frame(c, r + 3.5); V.slab = (surfOn && !only) ? 120 : r + 8; V._cam();
-  if (!quiet) { const e = $('#vinfo'); e.replaceChildren(h('span', { text: l.name + ' · mode ' + m.rank + ' · ' + f1(m.kJ) + ' kJ/mol' }), h('span', { text: m.inter.hbonds.length + ' H-bonds (dashed)' })); }
+  if (!quiet) { const e = $('#vinfo'); e.replaceChildren(h('span', { text: l.name + ' · mode ' + m.rank + ' · ' + uTxt(m) + ' ' + uName() }), h('span', { text: m.inter.hbonds.length + ' H-bonds (dashed)' })); }
 }
 function refreshView() {
   const draw = A.step === 'draw'; $('#paneDraw').hidden = !draw; $('#paneView').hidden = draw; const tools = $('#vtools'), info = $('#vinfo'), empty = $('#vempty'); tools.replaceChildren(); info.replaceChildren(); empty.hidden = true;
@@ -464,7 +471,7 @@ function panelDraw() {
   const box = h('div', { cls: 'sec' });
   box.append(h('h2', { text: 'Draw a ligand' }),
     h('p', { cls: 'lead', text: 'Draw with Bondline on the right. Every connected structure on the page appears below as you draw. Add the ones you want to dock.' }));
-  box.append(h('ol', { cls: 'wf' }, ...['Draw in Bondline', '3D build and minimise', 'Load a target, set the pocket', 'Dock and read kJ/mol'].map((t, i) => h('li', {}, h('b', { text: String(i + 1) }), t))),
+  box.append(h('ol', { cls: 'wf' }, ...['Draw in Bondline', '3D build and minimise', 'Load a target, set the pocket', 'Dock and read the score'].map((t, i) => h('li', {}, h('b', { text: String(i + 1) }), t))),
     h('p', { cls: 'note', text: 'Bondline is loaded from the Bondline tool in this site. Replace that file and Dock follows. Scores are Vina-style estimates for ranking and exploration, not AutoDock Vina itself.' }));
   if (BL.err) box.append(h('p', { cls: 'bad', text: BL.err }));
   box.append(h('div', { cls: 'sec' }, h('h3', { text: 'On the page now' }), h('div', { id: 'liveBox' })));
@@ -565,7 +572,8 @@ function panelRec() {
   return box;
 }
 
-function panelDock() {
+function panelDock() { const b = panelDockMain(); b.append(vinaInfo()); return b; }
+function panelDockMain() {
   const box = h('div', { cls: 'sec' }); box.append(h('h2', { text: 'Dock' }));
   if (!A.rec || !A.box) { box.append(h('p', { cls: 'lead', text: 'Load a target and set the search box first.' }), h('button', { cls: 'btn', text: 'Go to target', on: { click: () => go('rec') } })); return box; }
   if (!A.ligs.length) { box.append(h('p', { cls: 'lead', text: 'Add at least one ligand.' }), h('button', { cls: 'btn', text: 'Go to Draw', on: { click: () => go('draw') } })); return box; }
@@ -578,21 +586,48 @@ function panelDock() {
     box.append(h('div', { cls: 'sec' }, h('p', { id: 'pg-txt', cls: 'sub' }), h('div', { cls: 'bar', 'aria-label': 'Grid maps' }, h('i', { id: 'pg-grid' })), h('div', { cls: 'bar', 'aria-label': 'Docking' }, h('i', { id: 'pg-lig' })), h('button', { cls: 'btn wide', text: 'Cancel', on: { click: () => { A.cancel = true; } } })));
   } else box.append(h('button', { cls: 'btn pri wide', text: 'Run docking', on: { click: runDocking } }));
   box.append(h('details', {}, h('summary', { text: 'AutoDock-GPU (runs outside the browser)' }), h('p', { cls: 'note', style: 'margin:6px 0', text: 'AutoDock-GPU needs a GPU and a native install, and it scores with AutoDock4 rather than Vina. It cannot run inside this page, so the built-in engine stays the default. The job sheet below holds your search box and the commands to run it on a machine with a GPU.' }), h('button', { cls: 'btn sm', text: 'Save AutoDock-GPU job sheet', on: { click: exportADGPU } })));
-  box.append(h('p', { cls: 'note', text: 'Progress is written to the console at the bottom of the view.' }), h('button', { cls: 'btn sm', text: CON.open ? 'Hide console' : 'Show console', on: { click: () => { conOpen(!CON.open); renderPanel(); } } }));
+  box.append(h('p', { cls: 'note', text: 'Progress appears in a console at the bottom of the view while something is running, then it hides itself. Pin it to keep it open.' }), h('button', { cls: 'btn sm', text: CON.pinned ? 'Unpin console' : 'Pin console open', on: { click: () => { CON.pinned = !CON.pinned; if (CON.pinned) { $('#con').classList.remove('hide'); conOpen(true); } else conTouch(); renderPanel(); } } }));
   return box;
+}
+
+
+/* About the scoring engine: what Dock implements of AutoDock Vina, with the live weights and how it was checked. */
+function vinaInfo() {
+  const W = Dock.W, rows = [['gauss1', W.g1, 'attraction, narrow (width 0.5 Å)'], ['gauss2', W.g2, 'attraction, wide (width 2 Å, offset 3 Å)'], ['repulsion', W.rep, 'steric clash, d < 0'], ['hydrophobic', W.hyd, 'carbon/halogen contacts, ramp 0.5–1.5 Å'], ['H-bond', W.hb, 'donor–acceptor, ramp 0 to −0.7 Å'], ['rotatable bonds', W.rot, 'affinity = inter / (1 + w · N_rot)']];
+  const d = h('details', { cls: 'sec vina' }, h('summary', { text: 'About the scoring (AutoDock Vina)' }));
+  d.append(
+    h('p', { cls: 'note', style: 'margin:6px 0', text: 'Dock uses the AutoDock Vina scoring function, unchanged since Vina 1.0. The current Vina release is 1.2.7 (it added AD4 and Vinardo options, but its default scoring is the same). Distances are surface-to-surface (d = r − R_i − R_j) using Vina’s XS radii, with an 8 Å cutoff.' }),
+    h('table', { cls: 'vtab' }, h('thead', {}, h('tr', {}, h('th', { text: 'Term' }), h('th', { cls: 'num', text: 'Weight' }), h('th', { text: 'Role' }))),
+      h('tbody', {}, ...rows.map(r => h('tr', {}, h('td', { text: r[0] }), h('td', { cls: 'num', text: String(r[1]) }), h('td', { text: r[2] }))))),
+    h('p', { cls: 'note', style: 'margin:8px 0 4px', text: 'How a run works' }),
+    h('ul', { cls: 'note', style: 'margin:0 0 6px;padding-left:18px' },
+      h('li', { text: 'Grid maps (default 0.375 Å, Vina’s spacing) are built for each ligand atom type and used for the search.' }),
+      h('li', { text: 'Exhaustiveness = number of independent Monte Carlo runs, each step followed by BFGS local optimisation (default ' + A.o.runs + ').' }),
+      h('li', { text: 'Kept poses are then re-optimised and re-scored with exact pair sums, because trilinear maps under-read the sharp gauss1 term by about 7 %. Reported scores come from this step.' }),
+      h('li', { text: 'Scores are shown in kcal/mol (switch to kJ/mol in Results).' })),
+    h('p', { cls: 'note', style: 'margin:8px 0 4px', text: 'Checked against Vina 1.2.7 (1IEP, imatinib)' }),
+    h('p', { cls: 'note', style: 'margin:0 0 6px', text: 'Crystal pose −12.53 here vs −12.51 kcal/mol in Vina. Redocking gives about −13.3 vs −13.26, with the top pose within about 0.3–0.9 Å of the crystal pose.' }),
+    h('p', { cls: 'note', style: 'margin:8px 0 4px', text: 'Differences to keep in mind' }),
+    h('ul', { cls: 'note', style: 'margin:0;padding-left:18px' },
+      h('li', { text: 'Receptor and ligand preparation are Dock’s own (hydrogens, protonation, atom typing), not Meeko or MGLTools, so scores can shift by a kcal/mol or so on other targets.' }),
+      h('li', { text: 'Rigid receptor only; waters and non-selected hetero groups are removed; no metal or covalent handling.' }),
+      h('li', { text: 'Too few runs can miss the best pose. Raise exhaustiveness if the top score changes between runs.' }),
+      h('li', { text: 'A score is an estimate: it ranks poses well and ligands only roughly.' })));
+  return d;
 }
 
 function panelRes() {
   const box = h('div', { cls: 'sec' }); box.append(h('h2', { text: 'Docking results' }));
+  box.append(h('div', { cls: 'unit', role: 'group', 'aria-label': 'Energy unit' }, ...['kcal', 'kJ'].map(u => h('button', { cls: 'btn sm' + (UNIT === u ? ' on' : ''), 'aria-pressed': String(UNIT === u), text: u + '/mol', on: { click: () => { UNIT = u; try { localStorage.setItem('cp-dock-unit', u); } catch (e) {} renderPanel(); refreshAll(); } } }))));
   const done = A.ligs.filter(l => A.results[l.id]);
   if (!done.length) { box.append(h('p', { cls: 'lead', text: 'No results yet.' }), h('button', { cls: 'btn', text: 'Go to Dock', on: { click: () => go('dock') } })); return box; }
   const hasRef = done.some(l => l.ref);
-  box.append(h('table', {}, h('thead', {}, h('tr', {}, h('th', { text: 'Ligand' }), h('th', { cls: 'num', text: 'kJ/mol' }), h('th', { cls: 'num', text: 'kcal/mol' }), h('th', { cls: 'num', text: 'H-bonds' }), hasRef ? h('th', { cls: 'num', text: 'RMSD ref' }) : null)),
-    h('tbody', {}, ...done.map(l => { const b = A.results[l.id].modes[0]; return h('tr', { cls: 'sel' + (l.id === A.pose.id ? ' pick' : ''), on: { click: () => { A.sel = l.id; A.pose = { id: l.id, mode: 0 }; refreshAll(); } } }, h('td', { text: l.name }), h('td', { cls: 'num', text: f1(b.kJ) }), h('td', { cls: 'num', text: b.kcal.toFixed(2) }), h('td', { cls: 'num', text: String(b.inter.hbonds.length) }), hasRef ? h('td', { cls: 'num', text: b.rmsdRef != null ? b.rmsdRef.toFixed(2) + ' Å' : '' }) : null); }))));
+  box.append(h('table', {}, h('thead', {}, h('tr', {}, h('th', { text: 'Ligand' }), h('th', { cls: 'num', text: uName() }), h('th', { cls: 'num', text: UNIT === 'kJ' ? 'kcal/mol' : 'kJ/mol' }), h('th', { cls: 'num', text: 'H-bonds' }), hasRef ? h('th', { cls: 'num', text: 'RMSD ref' }) : null)),
+    h('tbody', {}, ...done.map(l => { const b = A.results[l.id].modes[0]; return h('tr', { cls: 'sel' + (l.id === A.pose.id ? ' pick' : ''), on: { click: () => { A.sel = l.id; A.pose = { id: l.id, mode: 0 }; refreshAll(); } } }, h('td', { text: l.name }), h('td', { cls: 'num', text: uTxt(b) }), h('td', { cls: 'num', text: UNIT === 'kJ' ? b.kcal.toFixed(2) : f1(b.kJ) }), h('td', { cls: 'num', text: String(b.inter.hbonds.length) }), hasRef ? h('td', { cls: 'num', text: b.rmsdRef != null ? b.rmsdRef.toFixed(2) + ' Å' : '' }) : null); }))));
   const l = A.ligs.find(q => q.id === A.pose.id) || done[0], r = A.results[l.id];
   box.append(h('div', { cls: 'sec' }, h('h3', { text: l.name + ' · ' + r.modes.length + ' poses' }), h('div', { cls: 'modes' }, ...r.modes.map((m, k) => h('div', { cls: 'mode' + (k === A.pose.mode ? ' on' : ''), on: { click: () => { A.pose = { id: l.id, mode: k }; renderPanel(); showPose(l, m); } } },
     m.img ? h('img', { src: m.img, alt: 'Pose ' + m.rank + ' in the binding pocket' }) : h('div'),
-    h('div', {}, h('div', { cls: 'aff' }, f1(m.kJ), h('small', { text: 'kJ/mol' })), h('div', { cls: 'sub', text: 'Pose ' + m.rank + ' · ' + m.kcal.toFixed(2) + ' kcal/mol' }),
+    h('div', {}, h('div', { cls: 'aff' }, uTxt(m), h('small', { text: uName() })), h('div', { cls: 'sub', text: 'Pose ' + m.rank + ' · ' + uAlt(m) }),
       h('div', { cls: 'sub', text: (k ? 'RMSD from best ' + m.rmsd.toFixed(2) + ' Å · ' : '') + m.inter.hbonds.length + ' H-bonds · ' + m.inter.hydrophobic + ' hydrophobic contacts' + (m.rmsdRef != null ? ' · ref ' + m.rmsdRef.toFixed(2) + ' Å' : '') }),
       k === A.pose.mode && m.inter.hbonds.length ? h('div', { cls: 'sub', style: 'margin-top:4px;white-space:normal', text: m.inter.hbonds.slice(0, 5).map(b => b.lig + ' ↔ ' + b.res + ' ' + b.atom + ' ' + b.d.toFixed(2) + ' Å').join('; ') }) : null))))));
   const m = r.modes[A.pose.mode] || r.modes[0];
@@ -603,7 +638,7 @@ function panelRes() {
     h('button', { cls: 'btn sm', text: 'Table (CSV)', on: { click: exportCSV } }), h('button', { cls: 'btn sm', text: 'Pose (SDF)', on: { click: () => saveFile(l.name.replace(/\W+/g, '_') + '_pose' + m.rank + '.sdf', Chem.toSDF(poseMol(l, m), l.name + ' pose ' + m.rank)) } }),
     h('button', { cls: 'btn sm', text: 'Complex (PDB)', on: { click: () => saveFile(l.name.replace(/\W+/g, '_') + '_complex' + m.rank + '.pdb', complexPDB(l, m)) } }),
     h('button', { cls: 'btn sm', text: 'Pose image', on: { click: async () => { showPose(l, m); saveFile(l.name.replace(/\W+/g, '_') + '_pose' + m.rank + '.png', await dataUrlBlob(A.viewer.snapshot(1600, snapH(1600)))); } } })),
-    h('p', { cls: 'note', text: 'Affinity is the Vina-style score of the pose, scaled for rotatable bonds, in kJ/mol (1 kcal = 4.184 kJ). It ranks poses well and ligands only roughly. Treat it as an estimate.' })));
+    h('p', { cls: 'note', text: 'Affinity is the Vina-style score of the pose, scaled for rotatable bonds, shown in kcal/mol by default (switch to kJ/mol above; (1 kcal = 4.184 kJ). It ranks poses well and ligands only roughly. Treat it as an estimate.' })));
   return box;
 }
 const poseMol = (l, m) => ({ atoms: l.dock.mol.atoms.map((a, i) => ({ ...a, x: m.pos[3*i], y: m.pos[3*i+1], z: m.pos[3*i+2] })), bonds: l.dock.mol.bonds });
@@ -627,7 +662,7 @@ $('#con-h').onclick = e => { if (e.target.closest('button')) return; conOpen(!CO
 $('#con-h').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); conOpen(!CON.open); } };
 $('#con-clear').onclick = () => { CON.lines.length = 0; $('#con-log').textContent = ''; $('#con-last').textContent = 'Cleared.'; };
 $('#con-copy').onclick = async () => { const s = CON.lines.map(x => x.ts + '  ' + x.msg).join('\n'); try { await navigator.clipboard.writeText(s); toast('Console copied.'); } catch (e) { toast('Could not copy. Select the text instead.'); } };
-clog('Bondline Dock ready. Draw a ligand or load the example target.');
+clog('RapidDock ready. Draw a ligand or load the example target.');
 loadBondline(); refreshAll();
 window.__bd = { A, Chem, Dock, loadExample, addExampleLigand, clog, ligProps, convert3D, minimiseLig, runDocking, addFromDrawing, poll, go };
 })();
