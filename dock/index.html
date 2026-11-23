@@ -123,6 +123,26 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px}
   .step .t{display:none}.step.on .t{display:inline}
 }
 @media (max-width:900px){.brand{margin-right:auto}#steps{order:3;flex:1 0 100%}}
+
+.chip.no{background:rgba(242,124,113,.16);color:var(--danger)}
+.chip.mid{background:rgba(230,163,61,.16);color:var(--warn)}
+.rules{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;font-size:12px;align-items:center}
+.rules .v{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+svg.radar{width:100%;max-width:260px;height:auto;display:block;margin:0 auto}
+svg.radar text{font:10px var(--ui);fill:var(--muted)}
+svg.radar .zone{fill:var(--accent-soft);stroke:none;fill-rule:evenodd}
+svg.radar .ring{fill:none;stroke:var(--line)}
+svg.radar .val{fill:rgba(217,119,87,.18);stroke:var(--accent);stroke-width:1.6}
+#con{position:absolute;left:8px;right:8px;bottom:8px;z-index:5;background:var(--panel);border:1px solid var(--line);border-radius:9px;display:flex;flex-direction:column;max-height:46%;box-shadow:0 4px 18px rgba(0,0,0,.25)}
+#con header{display:flex;align-items:center;gap:8px;padding:4px 8px;min-height:30px;cursor:pointer;background:none;border:0;border-radius:9px}
+#con .t{font:600 10px var(--ui);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+#con .last{flex:1;min-width:0;font:11.5px var(--mono);color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#con .cbar{width:90px;height:5px;background:var(--bg);border-radius:3px;overflow:hidden}
+#con .cbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+#con .btn{height:22px;padding:0 7px;font-size:11px}
+#con pre{margin:0;padding:6px 10px 8px;border-top:1px solid var(--line);overflow:auto;font:11.5px/1.5 var(--mono);color:var(--muted);white-space:pre-wrap;flex:1;min-height:90px}
+#con pre .err{color:var(--danger)}#con pre .ok{color:var(--good)}#con pre .ts{color:var(--muted);opacity:.7}
+#con.min pre{display:none}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -143,11 +163,16 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px}
         <div id="vtools"></div>
         <div id="vinfo"></div>
       </div>
+      <section id="con" class="min" aria-label="Console">
+        <header id="con-h" role="button" tabindex="0" aria-expanded="false"><span class="t">Console</span><span class="last" id="con-last">Ready.</span><span class="cbar" id="con-bar" hidden><i></i></span><button class="btn" id="con-copy" type="button" title="Copy the whole log">Copy</button><button class="btn" id="con-clear" type="button">Clear</button><span id="con-chev" aria-hidden="true">&#9650;</span></header>
+        <pre id="con-log" aria-live="off"></pre>
+      </section>
     </main>
   </div>
 </div>
 <div id="toast" hidden></div>
 <script src="chem.js"></script>
+<script src="props.js"></script>
 <script src="dock.js"></script>
 <script src="viewer.js"></script>
 <script src="app.js"></script>

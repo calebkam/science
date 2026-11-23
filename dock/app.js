@@ -1,7 +1,7 @@
 /* ============================ app.js ============================ */
 (function () {
 'use strict';
-const { Chem, Dock } = window;
+const { Chem, Dock, Props } = window;
 const $ = s => document.querySelector(s);
 const tick = () => new Promise(r => setTimeout(r, 0));
 function h(tag, props, ...kids) {
@@ -14,8 +14,21 @@ function h(tag, props, ...kids) {
   return e;
 }
 const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
+/* ---- console: every step writes a timestamped line here ---- */
+const CON = { lines: [], open: false, prog: -1 };
+function clog(msg, kind) {
+  const d = new Date(), ts = d.toTimeString().slice(0, 8);
+  CON.lines.push({ ts, msg: String(msg), kind: kind || '' }); if (CON.lines.length > 600) CON.lines.splice(0, CON.lines.length - 600);
+  const pre = $('#con-log'), last = $('#con-last'); if (!pre) return;
+  const row = document.createElement('div'), s = document.createElement('span'); s.className = 'ts'; s.textContent = ts + '  ';
+  const m = document.createElement('span'); if (kind) m.className = kind; m.textContent = String(msg); row.append(s, m); pre.append(row);
+  while (pre.childNodes.length > 600) pre.removeChild(pre.firstChild);
+  pre.scrollTop = 1e9; last.textContent = String(msg).trim(); last.style.color = kind === 'err' ? 'var(--danger)' : '';
+}
+function conProgress(f) { const b = $('#con-bar'); if (!b) return; if (f == null || f < 0) { b.hidden = true; return; } b.hidden = false; b.firstChild.style.width = Math.round(f * 100) + '%'; }
+function conOpen(v) { CON.open = v; const c = $('#con'); c.classList.toggle('min', !v); $('#con-h').setAttribute('aria-expanded', String(v)); $('#con-chev').innerHTML = v ? '&#9660;' : '&#9650;'; const pre = $('#con-log'); if (v) pre.scrollTop = 1e9; }
 let toastT = 0;
-function toast(msg, ms = 4000) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
+function toast(msg, ms = 4000) { clog(msg, /fail|could not|error|no protein|cannot/i.test(msg) ? 'err' : ''); const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
 
 const STEPS = [['draw', 'Draw'], ['model', '3D and minimise'], ['rec', 'Target and pocket'], ['dock', 'Dock'], ['res', 'Results']];
 const A = {
@@ -80,19 +93,103 @@ setInterval(poll, 700);
 function addLigand(parsed, name, extra) {
   const id = A.nextId++, l = Object.assign({ id, name: name || 'Ligand ' + id, parsed, mol: null, state: '2d', E: null, hist: [], parts: null, fm: '', mw: 0 }, extra || {});
   try { const f = Chem.formula(l.mol || Chem.prepare(parsed)); l.fm = f.text; l.mw = f.mass; } catch (e) {}
-  A.ligs.push(l); if (A.sel == null) A.sel = id; return l;
+  A.ligs.push(l); if (A.sel == null) A.sel = id; clog('Added ' + l.name + (l.fm ? ' (' + l.fm + ', ' + l.mw.toFixed(2) + ' g/mol)' : '')); return l;
 }
 function addFromDrawing(c) { return addLigand(c.parsed, null, { di: c.i }); }
 function convert3D(l) {
+  clog('Converting ' + l.name + ' to 3D (' + A.o.conf + ' conformers)...');
   const m = Chem.build3DFrom(l.parsed, { nconf: A.o.conf, seed: l.id * 17 + 3 });
   l.mol = m; l.state = '3d'; l.E = m.E; l.hist = []; l.parts = null; l.dock = null; delete A.results[l.id];
-  const f = Chem.formula(m); l.fm = f.text; l.mw = f.mass;
+  const f = Chem.formula(m); l.fm = f.text; l.mw = f.mass; l.props = null;
+  clog('  ' + l.name + ': ' + f.text + ', ' + m.atoms.length + ' atoms with hydrogens, force-field energy ' + m.E.toFixed(1) + ' kJ/mol', 'ok');
 }
 async function minimiseLig(l) {
   if (!l.mol) convert3D(l); const m = l.mol; if (!m.T) m.T = Chem.buildTopology(m);
+  clog('Minimising ' + l.name + '...');
   const x = Chem.coords(m), o = A.o; let rounds = 0, prev = Infinity, hist = [], res, d;
   do { res = Chem.minimize(x, m.T, { sd: o.sd, cg: o.cg, step: o.step }); hist.push(...res.hist); rounds++; d = prev - res.E; prev = res.E; await tick(); } while (o.conv && rounds < 40 && d > 0.05);
   Chem.setCoords(m, x); l.E = res.E; l.parts = res.parts; l.state = 'min'; l.hist = (l.hist || []).concat(hist); l.rounds = rounds; l.dock = null; delete A.results[l.id];
+  clog('  ' + l.name + ': ' + rounds + ' round' + (rounds > 1 ? 's' : '') + ', energy ' + res.E.toFixed(1) + ' kJ/mol', 'ok');
+}
+
+/* ===================== AutoDock-GPU hand-off ===================== */
+/* AutoDock-GPU is a native OpenCL/CUDA program with AutoDock4 scoring and AutoGrid4 maps. It cannot run inside a web page,
+   so this writes a job sheet with the search box and the commands, to run on a machine with a GPU. */
+function exportADGPU() {
+  const b = A.box; if (!b) return toast('Set the search box first.');
+  const sp = 0.375, np = b.s.map(v => { let n = Math.ceil(v / sp); return n + (n % 2); }), c = b.c.map(v => v.toFixed(3));
+  const names = A.ligs.map(l => l.name.replace(/\W+/g, '_'));
+  const txt = [
+    '# AutoDock-GPU job sheet from Bondline Dock',
+    '# Target: ' + (A.recName || 'target') + '   Ligands: ' + (names.join(', ') || 'none'),
+    '#',
+    '# AutoDock-GPU (https://github.com/forlilab/AutoDock-GPU) needs an OpenCL or CUDA GPU and uses AutoDock4 scoring,',
+    '# so its energies are not the same scale as the Vina-style scores in this page. Do not compare the two directly.',
+    '#',
+    '# 1. Search box from this session (Angstrom)',
+    'center  ' + c.join('  '),
+    'size    ' + b.s.map(v => v.toFixed(2)).join('  '),
+    'npts    ' + np.join('  ') + '   # grid points at 0.375 A spacing, rounded up to even numbers',
+    '#',
+    '# 2. Prepare files (not done here). Save the target and ligands from Bondline Dock (PDB and SDF buttons), then make PDBQT files',
+    '#    with Meeko (https://meeko.readthedocs.io), which also assigns the charges and AutoDock atom types AutoGrid needs.',
+    '#',
+    '# 3. Grid parameter file (target.gpf): the lines that depend on this session. Meeko or AutoDockTools writes the rest',
+    '#    (receptor_types, ligand_types, map lines, smooth, dielectric).',
+    'npts ' + np.join(' '),
+    'gridfld target.maps.fld',
+    'spacing ' + sp,
+    'receptor target.pdbqt',
+    'gridcenter ' + c.join(' '),
+    '#',
+    '# 4. Run',
+    'autogrid4 -p target.gpf -l target.glg',
+    'adgpu --ffile target.maps.fld --lfile ligand.pdbqt --nrun 20',
+    '#    adgpu is the name used in the Meeko tutorial; the build may be called autodock_gpu_64wi (see the AutoDock-GPU README).',
+    '#    For many ligands: adgpu --ffile target.maps.fld --filelist ligands.txt',
+    ''
+  ].join('\n');
+  saveFile('autodock_gpu_job.txt', new Blob([txt], { type: 'text/plain' }));
+  clog('Wrote autodock_gpu_job.txt (box centre ' + c.join(', ') + '; ' + np.join(' x ') + ' points)', 'ok');
+}
+
+/* ===================== drug-likeness ===================== */
+function ligProps(l) {
+  if (l.props) return l.props;
+  try { l.props = Props.props(l.mol || Chem.prepare(l.parsed)); } catch (e) { l.props = { error: e.message }; }
+  return l.props;
+}
+function radarSVG(P) {
+  const R = 78, C = 110, n = P.radar.length, ns = 'http://www.w3.org/2000/svg', sv = document.createElementNS(ns, 'svg');
+  sv.setAttribute('viewBox', '-16 0 252 220'); sv.setAttribute('class', 'radar'); sv.setAttribute('role', 'img'); sv.setAttribute('aria-label', 'Oral bioavailability radar: ' + P.radarOk + ' of 6 properties in the optimal range');
+  const pt = (k, f) => { const a = -Math.PI / 2 + k * 2 * Math.PI / n; return [C + Math.cos(a) * R * f, C + Math.sin(a) * R * f]; };
+  const nz = (r, v) => Math.max(0, Math.min(1, (v - r.min) / (r.max - r.min)));
+  const poly = fs => fs.map((f, k) => pt(k, f).map(v => v.toFixed(1)).join(',')).join(' ');
+  const mk = (tag, at, txt) => { const e = document.createElementNS(ns, tag); for (const k in at) e.setAttribute(k, at[k]); if (txt != null) e.textContent = txt; sv.append(e); return e; };
+  [0.25, 0.5, 0.75, 1].forEach(f => mk('polygon', { class: 'ring', points: poly(P.radar.map(() => f)) }));
+  P.radar.forEach((r, k) => { const [x, y] = pt(k, 1); mk('line', { x1: C, y1: C, x2: x.toFixed(1), y2: y.toFixed(1), class: 'ring' }); });
+  const outer = P.radar.map(r => nz(r, r.hi)), inner = P.radar.map(r => nz(r, r.lo));
+  mk('path', { class: 'zone', d: 'M' + poly(outer).replace(/ /g, 'L') + 'Z M' + poly(inner).replace(/ /g, 'L') + 'Z' });
+  mk('polygon', { class: 'val', points: poly(P.radar.map(r => nz(r, r.val))) });
+  P.radar.forEach((r, k) => { const [x, y] = pt(k, 1.2); mk('text', { x: x.toFixed(1), y: (y + 3).toFixed(1), 'text-anchor': Math.abs(x - C) < 6 ? 'middle' : x > C ? 'start' : 'end', style: r.ok ? '' : 'fill:var(--warn)' }, r.key); });
+  return sv;
+}
+function propsCard(l) {
+  const box = h('div', { cls: 'sec' }); box.append(h('h3', { text: 'Drug-likeness · ' + l.name }));
+  const P = ligProps(l); if (!P || P.error) { box.append(h('p', { cls: 'note', text: 'Could not compute properties' + (P ? ': ' + P.error : '.') })); return box; }
+  const chip = (ok, txt) => h('span', { cls: 'chip ' + (ok ? 'ok' : 'no'), text: txt });
+  const f = (v, d = 1) => v.toFixed(d), L = P.lipinski;
+  box.append(h('div', { cls: 'rules' },
+    h('span', { text: 'Molecular weight' }), h('span', { cls: 'v' }, f(P.mw, 2) + ' g/mol ', chip(L.mw, L.mw ? '≤ 500' : '> 500')),
+    h('span', { text: 'logP (MLOGP)' }), h('span', { cls: 'v' }, f(P.logp, 2) + ' ', chip(L.logp, L.logp ? '≤ 4.15' : '> 4.15')),
+    h('span', { text: 'H-bond acceptors (N + O)' }), h('span', { cls: 'v' }, P.hba + ' ', chip(L.hba, L.hba ? '≤ 10' : '> 10')),
+    h('span', { text: 'H-bond donors (NH + OH)' }), h('span', { cls: 'v' }, P.hbd + ' ', chip(L.hbd, L.hbd ? '≤ 5' : '> 5'))));
+  box.append(h('div', { cls: 'row' }, chip(L.pass, 'Lipinski: ' + (L.pass ? 'passes' : 'fails') + ' · ' + L.violations + ' violation' + (L.violations === 1 ? '' : 's')),
+    chip(P.veber.pass, 'Veber: ' + (P.veber.pass ? 'passes' : 'fails')), chip(P.egan.pass, 'Egan: ' + (P.egan.pass ? 'passes' : 'fails'))));
+  box.append(h('dl', { cls: 'kv' }, ...[['TPSA', f(P.tpsa, 1) + ' Å²'], ['Rotatable bonds', P.rb], ['Fraction Csp3', f(P.fsp3, 2)], ['Aromatic heavy atoms', P.arom + ' of ' + P.heavy], ['Solubility (ESOL)', f(P.logs, 2) + ' · ' + P.solClass], ['GI absorption', P.gi], ['Brain penetration', P.bbb]].flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: String(v) })])));
+  box.append(radarSVG(P), h('p', { cls: 'note', style: 'text-align:center', text: P.radarOk + ' of 6 properties inside the shaded optimal range (LIPO, SIZE, POLAR, INSOLU, INSATU, FLEX). Outside values are marked in amber.' }),
+    h('p', { cls: 'note', text: 'Estimates computed in your browser. TPSA follows Ertl, logP is Moriguchi MLOGP, solubility is Delaney ESOL, and the radar uses the same windows as SwissADME. SwissADME averages five logP models and uses XLOGP3 and WLOGP for some rules, so its numbers will differ a little. Egan here uses MLOGP in place of WLOGP. GI and brain flags are simple heuristics (TPSA, size, donors), not the BOILED-Egg model.' }));
+  return box;
 }
 
 /* ===================== receptor ===================== */
@@ -100,6 +197,7 @@ async function loadReceptorText(text, name) {
   const atoms = Dock.parsePDB(text);
   if (!atoms.some(a => !a.het || Dock.STD.has(a.res))) { toast('No protein atoms found in that file.'); return; }
   A.busy = 'Reading structure'; renderPanel(); await tick();
+  clog('Reading target ' + name + ': ' + atoms.length.toLocaleString() + ' atoms');
   A.recAtoms = atoms; A.recName = name;
   A.chains = [...new Set(atoms.filter(a => !a.het || Dock.STD.has(a.res)).map(a => a.chain))]; A.selChains = new Set(A.chains);
   A.hets = Dock.hetGroups(atoms).filter(g => !Dock.STD.has(g.res)); A.keepHet = new Set(); A.results = {}; A.box = null; A.keyRes = new Map(); A.keyNear = new Set(); A.keyOff = new Set();
@@ -107,9 +205,12 @@ async function loadReceptorText(text, name) {
 }
 async function prepRec() {
   A.busy = 'Preparing target and searching for pockets'; renderPanel(); await tick();
+  clog('Preparing target (chains ' + [...A.selChains].join(', ') + ')...');
   A.rec = Dock.prepareReceptor(A.recAtoms, { chains: [...A.selChains], keepHet: [...A.keepHet] }); A.pockets = [];
   await tick();
+  clog('Searching for pockets...');
   try { A.pockets = Dock.findPockets(A.rec); } catch (e) { A.pockets = []; }
+  clog('  ' + A.pockets.length + ' pocket' + (A.pockets.length === 1 ? '' : 's') + ' found', 'ok');
   if (!A.box) { if (A.example && A.recName.startsWith('1IEP')) useExampleSite(); else if (A.hets.some(g => g.nHeavy >= 5)) useHet(A.hets.filter(g => g.nHeavy >= 5).sort((p, q) => q.nHeavy - p.nHeavy)[0]); else if (A.pockets.length) usePocket(0); else { const c = Dock.centroid(A.rec.meta.map((m, i) => ({ x: A.rec.X[3*i], y: A.rec.X[3*i+1], z: A.rec.X[3*i+2] }))); A.box = { c, s: [30, 30, 30] }; A.boxMode = 'manual'; } }
   A.busy = ''; refreshAll();
 }
@@ -145,7 +246,7 @@ async function runDocking() {
   const todo = A.ligs.filter(l => l.dockOn !== false); if (!todo.length) return toast('Add and tick at least one ligand.');
   if (!A.rec) return toast('Load a target first.'); if (!A.box) return toast('Define the search box first.');
   A.running = true; A.cancel = false; A.log = []; A.progress = { grid: 0, lig: 0, name: '', i: 0, n: todo.length }; renderPanel(); refreshView();
-  const log = m => { A.log.push(m); const e = $('#log'); if (e) { e.textContent = A.log.join('\n'); e.scrollTop = 1e9; } };
+  const log = m => clog(m); conOpen(true); clog('--- Docking run started: ' + todo.length + ' ligand' + (todo.length > 1 ? 's' : '') + ', exhaustiveness ' + A.o.runs + ', effort ' + A.o.effort + ' ---');
   const prog = () => { const p = A.progress; const g = $('#pg-grid'), r = $('#pg-lig'), t = $('#pg-txt'); if (g) g.style.width = (p.grid * 100) + '%'; if (r) r.style.width = (p.lig * 100) + '%'; if (t) t.textContent = p.name ? p.name + ' (' + (p.i + 1) + ' of ' + p.n + ')' : ''; };
   try {
     const ligs = [];
@@ -154,21 +255,22 @@ async function runDocking() {
     const nPts = A.box.s.map(v => Math.ceil(v / A.o.spacing) + 1).reduce((a, b) => a * b, 1);
     log('Grid maps: ' + keys.length + ' atom types, ' + nPts.toLocaleString() + ' points per map, spacing ' + A.o.spacing + ' Å');
     const t0 = performance.now();
-    const G = await Dock.buildGrids(A.rec, A.box, keys, { spacing: A.o.spacing }, p => { A.progress.grid = p; prog(); }, () => A.cancel);
+    let gm = -1; const G = await Dock.buildGrids(A.rec, A.box, keys, { spacing: A.o.spacing }, p => { A.progress.grid = p; prog(); conProgress(p); const m = Math.floor(p * 4); if (m > gm) { gm = m; log('  grid maps ' + Math.round(p * 100) + '%'); } }, () => A.cancel);
     log('Grids ready in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s (' + G.nNear + ' target atoms in range)');
     for (let k = 0; k < ligs.length; k++) {
       const { l, d } = ligs[k]; A.progress.i = k; A.progress.name = l.name; A.progress.lig = 0; prog(); const t1 = performance.now();
       log(l.name + ': ' + d.nh + ' heavy atoms, ' + d.nt + ' rotatable bonds');
-      const res = await Dock.dockLigand(d, G, { runs: A.o.runs, effort: A.o.effort, modes: A.o.modes, range: A.o.rangeKJ / 4.184, seed: 1 + k }, { progress: f => { A.progress.lig = f; prog(); }, cancelled: () => A.cancel });
+      let lm = -1;
+      const res = await Dock.dockLigand(d, G, { runs: A.o.runs, effort: A.o.effort, modes: A.o.modes, range: A.o.rangeKJ / 4.184, seed: 1 + k }, { progress: f => { A.progress.lig = f; prog(); conProgress(f); const m = Math.floor(f * 5); if (m > lm) { lm = m; log('  ' + l.name + ' search ' + Math.round(f * 100) + '%'); } }, cancelled: () => A.cancel });
       l.dock = d; res.modes.forEach(m => { m.inter = Dock.interactions(d, A.rec, m.pos); if (l.ref) m.rmsdRef = refRmsd(d, m.pos, l.ref); });
       A.results[l.id] = { modes: res.modes, nrot: res.nrot, time: (performance.now() - t1) / 1000, runs: res.runs, steps: res.steps };
       const b = res.modes[0]; log('  best ' + f1(b.kJ) + ' kJ/mol (' + b.kcal.toFixed(2) + ' kcal/mol), ' + res.modes.length + ' modes, ' + A.results[l.id].time.toFixed(1) + ' s' + (b.rmsdRef != null ? ', RMSD to crystal ' + b.rmsdRef.toFixed(2) + ' Å' : ''));
-      A.pose = { id: l.id, mode: 0 };
+      A.pose = { id: l.id, mode: 0 }; conProgress(-1); log('  rendering ' + res.modes.length + ' pose images...');
       for (let m = 0; m < res.modes.length; m++) { showPose(l, res.modes[m], true); res.modes[m].img = A.viewer.snapshot(336, 252); await tick(); }
     }
-    A.running = false; A.step = 'res'; const first = ligs[0] && ligs[0].l; if (first) { A.sel = first.id; A.pose = { id: first.id, mode: 0 }; }
+    A.running = false; conProgress(-1); clog('--- Docking finished: ' + ligs.length + ' ligand' + (ligs.length > 1 ? 's' : '') + ' ---', 'ok'); A.step = 'res'; const first = ligs[0] && ligs[0].l; if (first) { A.sel = first.id; A.pose = { id: first.id, mode: 0 }; }
     refreshAll();
-  } catch (e) { A.running = false; if (e.message === 'cancelled') { toast('Docking cancelled.'); } else { console.error(e); toast('Docking failed: ' + e.message, 7000); } refreshAll(); }
+  } catch (e) { A.running = false; conProgress(-1); if (e.message === 'cancelled') { toast('Docking cancelled.'); } else { console.error(e); toast('Docking failed: ' + e.message, 7000); } refreshAll(); }
 }
 function refRmsd(d, pos, ref) { let s = 0, n = 0; for (const i of d.heavy) { const dx = pos[3*i] - ref[i][0], dy = pos[3*i+1] - ref[i][1], dz = pos[3*i+2] - ref[i][2]; s += dx*dx + dy*dy + dz*dz; n++; } return Math.sqrt(s / n); }
 
@@ -414,6 +516,7 @@ function panelModel() {
       h('p', { cls: 'note', text: 'A small generic force field (bonds, angles, torsions, planarity, Lennard-Jones). Fine for docking input, not for conformational energetics.' }),
       h('div', { cls: 'row' }, h('button', { cls: 'btn sm', text: 'Save PDB', on: { click: () => saveFile(l.name.replace(/\W+/g, '_') + '.pdb', Chem.toPDB(l.mol, 'LIG')) } }), h('button', { cls: 'btn sm', text: 'Save SDF', on: { click: () => saveFile(l.name.replace(/\W+/g, '_') + '.sdf', Chem.toSDF(l.mol, l.name)) } }))));
   }
+  if (l) box.append(propsCard(l));
   box.append(h('button', { cls: 'btn pri wide', text: 'Continue to target', on: { click: () => go('rec') } }));
   return box;
 }
@@ -474,7 +577,8 @@ function panelDock() {
   if (A.running) {
     box.append(h('div', { cls: 'sec' }, h('p', { id: 'pg-txt', cls: 'sub' }), h('div', { cls: 'bar', 'aria-label': 'Grid maps' }, h('i', { id: 'pg-grid' })), h('div', { cls: 'bar', 'aria-label': 'Docking' }, h('i', { id: 'pg-lig' })), h('button', { cls: 'btn wide', text: 'Cancel', on: { click: () => { A.cancel = true; } } })));
   } else box.append(h('button', { cls: 'btn pri wide', text: 'Run docking', on: { click: runDocking } }));
-  box.append(h('div', { id: 'log', cls: 'log', text: A.log.join('\n') || 'Log' }));
+  box.append(h('details', {}, h('summary', { text: 'AutoDock-GPU (runs outside the browser)' }), h('p', { cls: 'note', style: 'margin:6px 0', text: 'AutoDock-GPU needs a GPU and a native install, and it scores with AutoDock4 rather than Vina. It cannot run inside this page, so the built-in engine stays the default. The job sheet below holds your search box and the commands to run it on a machine with a GPU.' }), h('button', { cls: 'btn sm', text: 'Save AutoDock-GPU job sheet', on: { click: exportADGPU } })));
+  box.append(h('p', { cls: 'note', text: 'Progress is written to the console at the bottom of the view.' }), h('button', { cls: 'btn sm', text: CON.open ? 'Hide console' : 'Show console', on: { click: () => { conOpen(!CON.open); renderPanel(); } } }));
   return box;
 }
 
@@ -493,6 +597,7 @@ function panelRes() {
       k === A.pose.mode && m.inter.hbonds.length ? h('div', { cls: 'sub', style: 'margin-top:4px;white-space:normal', text: m.inter.hbonds.slice(0, 5).map(b => b.lig + ' ↔ ' + b.res + ' ' + b.atom + ' ' + b.d.toFixed(2) + ' Å').join('; ') }) : null))))));
   const m = r.modes[A.pose.mode] || r.modes[0];
   if (m && m.inter.contacts.length) box.append(h('div', { cls: 'sec' }, h('h3', { text: 'Residues within 4.2 Å' }), h('p', { cls: 'sub', style: 'white-space:normal', text: m.inter.contacts.map(c => c.res + c.resi).join('  ') })));
+  box.append(propsCard(l));
   box.append(keyPanel());
   box.append(h('div', { cls: 'sec' }, h('h3', { text: 'Export' }), h('div', { cls: 'row' },
     h('button', { cls: 'btn sm', text: 'Table (CSV)', on: { click: exportCSV } }), h('button', { cls: 'btn sm', text: 'Pose (SDF)', on: { click: () => saveFile(l.name.replace(/\W+/g, '_') + '_pose' + m.rank + '.sdf', Chem.toSDF(poseMol(l, m), l.name + ' pose ' + m.rank)) } }),
@@ -509,8 +614,8 @@ function complexPDB(l, m) {
   return s + 'TER\n' + Chem.toPDB(poseMol(l, m), 'LIG', 'L', 1).replace(/^HETATM(.{5})/gm, (q, n) => 'HETATM' + String(+n + k).padStart(5)).replace(/^CONECT.*\n/gm, '');
 }
 function exportCSV() {
-  const rows = [['ligand', 'pose', 'affinity_kJ_per_mol', 'affinity_kcal_per_mol', 'rmsd_from_best_A', 'hbonds', 'hydrophobic_contacts', 'rmsd_to_reference_A']];
-  for (const l of A.ligs) { const r = A.results[l.id]; if (!r) continue; r.modes.forEach(m => rows.push([l.name, m.rank, m.kJ.toFixed(2), m.kcal.toFixed(3), m.rmsd.toFixed(2), m.inter.hbonds.length, m.inter.hydrophobic, m.rmsdRef != null ? m.rmsdRef.toFixed(2) : ''])); }
+  const rows = [['ligand', 'pose', 'affinity_kJ_per_mol', 'affinity_kcal_per_mol', 'rmsd_from_best_A', 'hbonds', 'hydrophobic_contacts', 'rmsd_to_reference_A', 'MW', 'MLOGP', 'TPSA', 'HBD', 'HBA', 'rotatable_bonds', 'ESOL_logS', 'lipinski_violations']];
+  for (const l of A.ligs) { const r = A.results[l.id]; if (!r) continue; r.modes.forEach(m => rows.push([l.name, m.rank, m.kJ.toFixed(2), m.kcal.toFixed(3), m.rmsd.toFixed(2), m.inter.hbonds.length, m.inter.hydrophobic, m.rmsdRef != null ? m.rmsdRef.toFixed(2) : '', ...(() => { const P = ligProps(l); return P && !P.error ? [P.mw.toFixed(2), P.logp.toFixed(2), P.tpsa.toFixed(1), P.hbd, P.hba, P.rb, P.logs.toFixed(2), P.lipinski.violations] : ['', '', '', '', '', '', '', '']; })()])); }
   saveFile('docking_results.csv', rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : v).join(',')).join('\n'));
 }
 
@@ -518,6 +623,11 @@ function exportCSV() {
 $('#b-theme').onclick = () => { const r = document.documentElement, nx = dark() ? 'light' : 'dark'; r.dataset.theme = nx; try { localStorage.setItem('cp-theme', nx); } catch (e) {} syncBLTheme(); if (A.viewer) A.viewer.dark = dark(); refreshView(); };
 try { const t = localStorage.getItem('cp-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 window.addEventListener('resize', () => { if (A.viewer) A.viewer.resize(); });
+$('#con-h').onclick = e => { if (e.target.closest('button')) return; conOpen(!CON.open); };
+$('#con-h').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); conOpen(!CON.open); } };
+$('#con-clear').onclick = () => { CON.lines.length = 0; $('#con-log').textContent = ''; $('#con-last').textContent = 'Cleared.'; };
+$('#con-copy').onclick = async () => { const s = CON.lines.map(x => x.ts + '  ' + x.msg).join('\n'); try { await navigator.clipboard.writeText(s); toast('Console copied.'); } catch (e) { toast('Could not copy. Select the text instead.'); } };
+clog('Bondline Dock ready. Draw a ligand or load the example target.');
 loadBondline(); refreshAll();
-window.__bd = { A, Chem, Dock, loadExample, convert3D, minimiseLig, runDocking, addFromDrawing, poll, go };
+window.__bd = { A, Chem, Dock, loadExample, addExampleLigand, clog, ligProps, convert3D, minimiseLig, runDocking, addFromDrawing, poll, go };
 })();

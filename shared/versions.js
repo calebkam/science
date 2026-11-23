@@ -2,8 +2,8 @@
    Keys match the folder names. */
 window.CP_VERSIONS = {
   site: '0.1',
-  'bondline': '0.3 beta',
-  'dock': '0.3 beta',
+  'bondline': '0.4 beta',
+  'dock': '0.4 beta',
   'positioning-kit': '0.2 beta',
   'brain-matrix': '0.2 beta',
   'slicer': '0.3 beta'
