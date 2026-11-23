@@ -1,7 +1,7 @@
 {
   "name": "science",
   "private": true,
-  "description": "Browser-based lab tools: Bondline, RapidDock, Positioning Kit Generator and Brain Matrix Generator.",
+  "description": "Browser-based lab tools: Bondline, Bondline Dock, Positioning Kit Generator and Brain Matrix Generator.",
   "scripts": {
     "test": "node dock/test/chem.test.js && node dock/test/dock.test.js && node dock/test/vina.test.js",
     "serve": "python3 -m http.server 8000"

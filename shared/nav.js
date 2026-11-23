@@ -27,7 +27,7 @@
   var parts = location.pathname.split('/').filter(Boolean), id = parts[parts.length - 1] === 'index.html' ? parts[parts.length - 2] : parts[parts.length - 1];
   var ver = window.CP_VERSIONS && window.CP_VERSIONS[id];
   if (ver) {
-    var chip = document.createElement('a'); chip.className = 'cp-ver'; chip.id = 'cp-version'; chip.href = new URL('../changelog/', location.href).href; chip.style.textDecoration = 'none'; chip.textContent = window.cpVer(ver); chip.title = 'Version ' + ver + ' \u00b7 see the changelog';
+    var chip = document.createElement('span'); chip.className = 'cp-ver'; chip.id = 'cp-version'; chip.textContent = 'v' + ver; chip.title = 'Version ' + ver;
     var anchor = document.getElementById('b-theme') || document.getElementById('cp-theme-btn');
     if (anchor) anchor.insertAdjacentElement('afterend', chip);
   }

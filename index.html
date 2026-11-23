@@ -68,7 +68,6 @@ code{font:12.5px var(--mono);background:var(--bg);padding:1px 5px;border-radius:
 
   <div id="groups"></div>
   <footer>
-    <span><a href="changelog/">Changelog</a></span>
     <span><a href="https://github.com/" id="repo">Source on GitHub</a></span>
   </footer>
 </div>
@@ -81,7 +80,7 @@ const GROUPS = [
 const TOOLS = [
   { group: 'mol', name: 'Bondline', href: 'bondline/', icon: 'pen', tag: 'Draw',
     text: 'A 2D chemical structure editor. Draw rings, chains, charges and stereochemistry, then export a molfile.' },
-  { group: 'mol', name: 'RapidDock', href: 'dock/', icon: 'dock', tag: 'Build and dock',
+  { group: 'mol', name: 'Bondline Dock', href: 'dock/', icon: 'dock', tag: 'Build and dock',
     text: 'Convert a drawing to 3D, minimise its energy, define a binding pocket on a PDB structure and dock it. Poses, images and kJ/mol.' },
   { group: 'anat', name: 'Positioning Kit Generator', href: 'positioning-kit/', icon: 'kit', tag: 'Design and print',
     text: 'Parametric rests for a head or limb lying on its uncut surface. Set the sizes, check the 3D preview, download STL files.' },
@@ -106,12 +105,12 @@ for (const g of GROUPS) {
     const live = !!t.href, el = document.createElement(live ? 'a' : 'div'); el.className = 'card' + (live ? '' : ' soon'); if (live) el.href = t.href;
     const svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[t.icon] || ICONS.dock) + '</svg>';
     el.innerHTML = '<div class="ic">' + svg + '</div><h3></h3><p></p><div class="foot"><span></span><span class="chip"></span></div>';
-    el.querySelector('h3').textContent = t.name; el.querySelector('p').textContent = t.text; const v = (window.CP_VERSIONS || {})[t.href.replace(/\/$/, '')]; el.querySelector('.foot span').textContent = t.tag + (v ? ' \u00b7 ' + window.cpVer(v) : '');
+    el.querySelector('h3').textContent = t.name; el.querySelector('p').textContent = t.text; const v = (window.CP_VERSIONS || {})[t.href.replace(/\/$/, '')]; el.querySelector('.foot span').textContent = t.tag + (v ? ' \u00b7 v' + v : '');
     const chip = el.querySelector('.chip'); chip.textContent = live ? 'Open' : 'Coming soon'; if (!live) chip.classList.add('off'); box.append(el);
   }
   groups.append(sec);
 }
-const sv = (window.CP_VERSIONS || {}).site; if (sv) document.getElementById('site-ver').textContent = window.cpVer(sv); else document.getElementById('site-ver').remove();
+const sv = (window.CP_VERSIONS || {}).site; if (sv) document.getElementById('site-ver').textContent = 'v' + sv; else document.getElementById('site-ver').remove();
 /* If shared/theme.js did not load (for example the shared folder was not uploaded), fall back to a local copy of its logic so this page still works. */
 if (!window.CPTheme) {
   const R = document.documentElement, K = 'cp-theme', read = () => { try { const v = localStorage.getItem(K); return v === 'light' ? 'light' : 'dark'; } catch (e) { return 'dark'; } };

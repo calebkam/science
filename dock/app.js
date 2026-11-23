@@ -127,7 +127,7 @@ function exportADGPU() {
   const sp = 0.375, np = b.s.map(v => { let n = Math.ceil(v / sp); return n + (n % 2); }), c = b.c.map(v => v.toFixed(3));
   const names = A.ligs.map(l => l.name.replace(/\W+/g, '_'));
   const txt = [
-    '# AutoDock-GPU job sheet from RapidDock',
+    '# AutoDock-GPU job sheet from Bondline Dock',
     '# Target: ' + (A.recName || 'target') + '   Ligands: ' + (names.join(', ') || 'none'),
     '#',
     '# AutoDock-GPU (https://github.com/forlilab/AutoDock-GPU) needs an OpenCL or CUDA GPU and uses AutoDock4 scoring,',
@@ -138,7 +138,7 @@ function exportADGPU() {
     'size    ' + b.s.map(v => v.toFixed(2)).join('  '),
     'npts    ' + np.join('  ') + '   # grid points at 0.375 A spacing, rounded up to even numbers',
     '#',
-    '# 2. Prepare files (not done here). Save the target and ligands from RapidDock (PDB and SDF buttons), then make PDBQT files',
+    '# 2. Prepare files (not done here). Save the target and ligands from Bondline Dock (PDB and SDF buttons), then make PDBQT files',
     '#    with Meeko (https://meeko.readthedocs.io), which also assigns the charges and AutoDock atom types AutoGrid needs.',
     '#',
     '# 3. Grid parameter file (target.gpf): the lines that depend on this session. Meeko or AutoDockTools writes the rest',
@@ -572,8 +572,7 @@ function panelRec() {
   return box;
 }
 
-function panelDock() { const b = panelDockMain(); b.append(vinaInfo()); return b; }
-function panelDockMain() {
+function panelDock() {
   const box = h('div', { cls: 'sec' }); box.append(h('h2', { text: 'Dock' }));
   if (!A.rec || !A.box) { box.append(h('p', { cls: 'lead', text: 'Load a target and set the search box first.' }), h('button', { cls: 'btn', text: 'Go to target', on: { click: () => go('rec') } })); return box; }
   if (!A.ligs.length) { box.append(h('p', { cls: 'lead', text: 'Add at least one ligand.' }), h('button', { cls: 'btn', text: 'Go to Draw', on: { click: () => go('draw') } })); return box; }
@@ -588,32 +587,6 @@ function panelDockMain() {
   box.append(h('details', {}, h('summary', { text: 'AutoDock-GPU (runs outside the browser)' }), h('p', { cls: 'note', style: 'margin:6px 0', text: 'AutoDock-GPU needs a GPU and a native install, and it scores with AutoDock4 rather than Vina. It cannot run inside this page, so the built-in engine stays the default. The job sheet below holds your search box and the commands to run it on a machine with a GPU.' }), h('button', { cls: 'btn sm', text: 'Save AutoDock-GPU job sheet', on: { click: exportADGPU } })));
   box.append(h('p', { cls: 'note', text: 'Progress appears in a console at the bottom of the view while something is running, then it hides itself. Pin it to keep it open.' }), h('button', { cls: 'btn sm', text: CON.pinned ? 'Unpin console' : 'Pin console open', on: { click: () => { CON.pinned = !CON.pinned; if (CON.pinned) { $('#con').classList.remove('hide'); conOpen(true); } else conTouch(); renderPanel(); } } }));
   return box;
-}
-
-
-/* About the scoring engine: what Dock implements of AutoDock Vina, with the live weights and how it was checked. */
-function vinaInfo() {
-  const W = Dock.W, rows = [['gauss1', W.g1, 'attraction, narrow (width 0.5 Å)'], ['gauss2', W.g2, 'attraction, wide (width 2 Å, offset 3 Å)'], ['repulsion', W.rep, 'steric clash, d < 0'], ['hydrophobic', W.hyd, 'carbon/halogen contacts, ramp 0.5–1.5 Å'], ['H-bond', W.hb, 'donor–acceptor, ramp 0 to −0.7 Å'], ['rotatable bonds', W.rot, 'affinity = inter / (1 + w · N_rot)']];
-  const d = h('details', { cls: 'sec vina' }, h('summary', { text: 'About the scoring (AutoDock Vina)' }));
-  d.append(
-    h('p', { cls: 'note', style: 'margin:6px 0', text: 'Dock uses the AutoDock Vina scoring function, unchanged since Vina 1.0. The current Vina release is 1.2.7 (it added AD4 and Vinardo options, but its default scoring is the same). Distances are surface-to-surface (d = r − R_i − R_j) using Vina’s XS radii, with an 8 Å cutoff.' }),
-    h('table', { cls: 'vtab' }, h('thead', {}, h('tr', {}, h('th', { text: 'Term' }), h('th', { cls: 'num', text: 'Weight' }), h('th', { text: 'Role' }))),
-      h('tbody', {}, ...rows.map(r => h('tr', {}, h('td', { text: r[0] }), h('td', { cls: 'num', text: String(r[1]) }), h('td', { text: r[2] }))))),
-    h('p', { cls: 'note', style: 'margin:8px 0 4px', text: 'How a run works' }),
-    h('ul', { cls: 'note', style: 'margin:0 0 6px;padding-left:18px' },
-      h('li', { text: 'Grid maps (default 0.375 Å, Vina’s spacing) are built for each ligand atom type and used for the search.' }),
-      h('li', { text: 'Exhaustiveness = number of independent Monte Carlo runs, each step followed by BFGS local optimisation (default ' + A.o.runs + ').' }),
-      h('li', { text: 'Kept poses are then re-optimised and re-scored with exact pair sums, because trilinear maps under-read the sharp gauss1 term by about 7 %. Reported scores come from this step.' }),
-      h('li', { text: 'Scores are shown in kcal/mol (switch to kJ/mol in Results).' })),
-    h('p', { cls: 'note', style: 'margin:8px 0 4px', text: 'Checked against Vina 1.2.7 (1IEP, imatinib)' }),
-    h('p', { cls: 'note', style: 'margin:0 0 6px', text: 'Crystal pose −12.53 here vs −12.51 kcal/mol in Vina. Redocking gives about −13.3 vs −13.26, with the top pose within about 0.3–0.9 Å of the crystal pose.' }),
-    h('p', { cls: 'note', style: 'margin:8px 0 4px', text: 'Differences to keep in mind' }),
-    h('ul', { cls: 'note', style: 'margin:0;padding-left:18px' },
-      h('li', { text: 'Receptor and ligand preparation are Dock’s own (hydrogens, protonation, atom typing), not Meeko or MGLTools, so scores can shift by a kcal/mol or so on other targets.' }),
-      h('li', { text: 'Rigid receptor only; waters and non-selected hetero groups are removed; no metal or covalent handling.' }),
-      h('li', { text: 'Too few runs can miss the best pose. Raise exhaustiveness if the top score changes between runs.' }),
-      h('li', { text: 'A score is an estimate: it ranks poses well and ligands only roughly.' })));
-  return d;
 }
 
 function panelRes() {
@@ -662,7 +635,7 @@ $('#con-h').onclick = e => { if (e.target.closest('button')) return; conOpen(!CO
 $('#con-h').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); conOpen(!CON.open); } };
 $('#con-clear').onclick = () => { CON.lines.length = 0; $('#con-log').textContent = ''; $('#con-last').textContent = 'Cleared.'; };
 $('#con-copy').onclick = async () => { const s = CON.lines.map(x => x.ts + '  ' + x.msg).join('\n'); try { await navigator.clipboard.writeText(s); toast('Console copied.'); } catch (e) { toast('Could not copy. Select the text instead.'); } };
-clog('RapidDock ready. Draw a ligand or load the example target.');
+clog('Bondline Dock ready. Draw a ligand or load the example target.');
 loadBondline(); refreshAll();
 window.__bd = { A, Chem, Dock, loadExample, addExampleLigand, clog, ligProps, convert3D, minimiseLig, runDocking, addFromDrawing, poll, go };
 })();
