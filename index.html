@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Lab Tools</title>
-<meta name="description" content="Browser-based tools for drawing and docking molecules and for designing 3D-printable anatomy positioning kits and brain slicing matrices. Everything runs locally in your browser.">
+<meta name="description" content="Browser-based tools for designing 3D-printable anatomy positioning kits and brain slicing matrices, and for slicing models for print. Everything runs locally in your browser.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <script src="shared/theme.js"></script>
 <script src="shared/versions.js"></script>
@@ -63,25 +63,21 @@ code{font:12.5px var(--mono);background:var(--bg);padding:1px 5px;border-radius:
 
   <section class="hero">
     <h1>Bench tools that run in <span class="hl">your browser.</span></h1>
-    <p>Draw molecules and dock them to proteins. Design 3D-printable positioning kits and brain slicing matrices. No install, no server, and nothing you enter leaves your machine.</p>
+    <p>Design 3D-printable positioning kits and brain slicing matrices, then slice them for your printer. No install, no server, and nothing you enter leaves your machine.</p>
   </section>
 
   <div id="groups"></div>
   <footer>
+    <span><a href="changelog/">Changelog</a></span>
     <span><a href="https://github.com/" id="repo">Source on GitHub</a></span>
   </footer>
 </div>
 <script>
 /* Add a tool: append one object to TOOLS. group decides the heading it appears under. */
 const GROUPS = [
-  { id: 'mol', title: 'Molecules' },
   { id: 'anat', title: 'Anatomy and 3D printing' }
 ];
 const TOOLS = [
-  { group: 'mol', name: 'Bondline', href: 'bondline/', icon: 'pen', tag: 'Draw',
-    text: 'A 2D chemical structure editor. Draw rings, chains, charges and stereochemistry, then export a molfile.' },
-  { group: 'mol', name: 'Bondline Dock', href: 'dock/', icon: 'dock', tag: 'Build and dock',
-    text: 'Convert a drawing to 3D, minimise its energy, define a binding pocket on a PDB structure and dock it. Poses, images and kJ/mol.' },
   { group: 'anat', name: 'Positioning Kit Generator', href: 'positioning-kit/', icon: 'kit', tag: 'Design and print',
     text: 'Parametric rests for a head or limb lying on its uncut surface. Set the sizes, check the 3D preview, download STL files.' },
   { group: 'anat', name: 'Brain Matrix Generator', href: 'brain-matrix/', icon: 'brain', tag: 'Design and print',
@@ -90,8 +86,6 @@ const TOOLS = [
     text: 'A 3D print slicer for the Bambu Lab H2S and P2S and the Elegoo Centauri Carbon. Load STL, OBJ or 3MF, add organic supports, preview every layer and export G-code.' }
 ];
 const ICONS = {
-  pen: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 7l3 3"/>',
-  dock: '<path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/><circle cx="12" cy="12" r="2.6"/>',
   kit: '<path d="M3 17h18"/><path d="M5 17c0-4 3-7 7-7s7 3 7 7"/><path d="M9 17v-3M15 17v-3"/>',
   slicer: '<path d="M4 8l8-4 8 4-8 4z"/><path d="M4 12l8 4 8-4"/><path d="M4 16l8 4 8-4"/>',
   brain: '<path d="M12 5v14"/><path d="M12 6c-2-2.5-6-1.5-6 1.5-2 .5-2.5 3.5-.5 4.5-1 2 .5 4.5 3 4 .5 2 3.5 2.5 3.5 0"/><path d="M12 6c2-2.5 6-1.5 6 1.5 2 .5 2.5 3.5.5 4.5 1 2-.5 4.5-3 4-.5 2-3.5 2.5-3.5 0"/>'
@@ -103,14 +97,14 @@ for (const g of GROUPS) {
   const box = sec.querySelector('.cards');
   for (const t of items) {
     const live = !!t.href, el = document.createElement(live ? 'a' : 'div'); el.className = 'card' + (live ? '' : ' soon'); if (live) el.href = t.href;
-    const svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[t.icon] || ICONS.dock) + '</svg>';
+    const svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[t.icon] || ICONS.kit) + '</svg>';
     el.innerHTML = '<div class="ic">' + svg + '</div><h3></h3><p></p><div class="foot"><span></span><span class="chip"></span></div>';
-    el.querySelector('h3').textContent = t.name; el.querySelector('p').textContent = t.text; const v = (window.CP_VERSIONS || {})[t.href.replace(/\/$/, '')]; el.querySelector('.foot span').textContent = t.tag + (v ? ' \u00b7 v' + v : '');
+    el.querySelector('h3').textContent = t.name; el.querySelector('p').textContent = t.text; const v = (window.CP_VERSIONS || {})[t.href.replace(/\/$/, '')]; el.querySelector('.foot span').textContent = t.tag + (v ? ' \u00b7 ' + window.cpVer(v) : '');
     const chip = el.querySelector('.chip'); chip.textContent = live ? 'Open' : 'Coming soon'; if (!live) chip.classList.add('off'); box.append(el);
   }
   groups.append(sec);
 }
-const sv = (window.CP_VERSIONS || {}).site; if (sv) document.getElementById('site-ver').textContent = 'v' + sv; else document.getElementById('site-ver').remove();
+const sv = (window.CP_VERSIONS || {}).site; if (sv) document.getElementById('site-ver').textContent = window.cpVer(sv); else document.getElementById('site-ver').remove();
 /* If shared/theme.js did not load (for example the shared folder was not uploaded), fall back to a local copy of its logic so this page still works. */
 if (!window.CPTheme) {
   const R = document.documentElement, K = 'cp-theme', read = () => { try { const v = localStorage.getItem(K); return v === 'light' ? 'light' : 'dark'; } catch (e) { return 'dark'; } };

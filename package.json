@@ -1,9 +1,8 @@
 {
-  "name": "science",
+  "name": "lab-tools-3d",
   "private": true,
-  "description": "Browser-based lab tools: Bondline, Bondline Dock, Positioning Kit Generator and Brain Matrix Generator.",
+  "description": "Browser-based tools for 3D printing and anatomy models: Positioning Kit Generator, Brain Matrix Generator and Layerline Slicer.",
   "scripts": {
-    "test": "node dock/test/chem.test.js && node dock/test/dock.test.js && node dock/test/vina.test.js",
     "serve": "python3 -m http.server 8000"
   }
 }

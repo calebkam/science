@@ -1,5 +1,5 @@
 /* Shared theme for every page in this repo. Dark by default; the choice is remembered in localStorage under "cp-theme"
-   and kept in sync across tabs and the Bondline iframe inside Dock. Load this in <head> so there is no flash. */
+   and kept in sync across tabs and any embedded frames. Load this in <head> so there is no flash. */
 (function () {
   var K = 'cp-theme', R = document.documentElement;
   function read() { try { var v = localStorage.getItem(K); return v === 'light' || v === 'dark' ? v : 'dark'; } catch (e) { return 'dark'; } }

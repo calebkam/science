@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Changelog</title>
+<title>Lab Tools Changelog</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <script src="../shared/theme.js"></script>
 <script src="../shared/versions.js"></script>
@@ -56,8 +56,7 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:v
     <button class="btn" id="theme" type="button">Light mode</button>
   </header>
   <h1>Changelog</h1>
-  <p class="lead">What changed in every tool, newest first. Each tool currently reads <b>Beta 0.5</b>.</p>
-  <p class="note">Detail is fullest for RapidDock and Bondline, whose changes were tracked release by release. Earlier releases of the other tools are summarised from what the repository contains, and some version numbers before Beta 0.5 were not recorded.</p>
+  <p class="lead">What each tool does and has gained so far.</p>
   <div class="filters" id="filters" role="group" aria-label="Show"></div>
   <div id="log"></div>
   <footer>Version numbers live in <code>shared/versions.js</code>. Add a new entry at the top of <code>LOG</code> in this page when you change a tool.</footer>
@@ -65,28 +64,14 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:v
 <script>
 /* Newest release first inside each tool. rel = [heading, date, [items]] */
 const LOG = [
-  { id: 'site', name: 'Home page', about: 'Landing page with a card for each tool.', rel: [
-    ['Beta 0.5', '2026-11-24', ['New Changelog page, linked from the footer and from every version chip.', 'All version numbers reset to Beta 0.5 and shown the same way on every page.', 'RapidDock card renamed (was Bondline Dock).']],
-    ['0.1', 'Nov 2026', ['First home page: cards for each tool, grouped as Molecules and Anatomy and 3D printing; shared dark/light theme that is remembered.']] ] },
-  { id: 'bondline', name: 'Bondline', about: '2D chemical structure editor.', rel: [
-    ['Beta 0.5', '2026-11-24', ['Version label only. No change to the editor.']],
-    ['0.4 beta', '2026-11-23', ['Offline IUPAC naming, no network and no AI needed: chains, rings, benzene with substituents, esters, amides with N-substituents, retained names, lowest-locant numbering, alphabetised prefixes and nested brackets.', 'Fused and heterocyclic ring systems are not named offline yet; in the artifact version those can still be named by Claude.', 'Tests in bondline/test; the naming engine is bondline/iupac.js, inlined into the page.']],
-    ['Before 0.4', '2026-11-20 to 11-23', ['Version with IUPAC naming by Claude, published as its own artifact without overwriting existing ones.', 'Shared theme (dark by default), Home button, version chip.', 'Exposes molfile() so RapidDock can read the drawing.']] ] },
-  { id: 'dock', name: 'RapidDock', about: 'Draw, build in 3D, minimise, define a pocket and dock with Vina scoring. Formerly Bondline Dock.', rel: [
-    ['Beta 0.5', '2026-11-24', ['New “About the scoring (AutoDock Vina)” section on the Dock page: Vina version, term weights, how a run works, how it was checked and where it differs.', 'Version label reset to Beta 0.5.']],
-    ['0.4.2', '2026-11-24', ['Renamed from Bondline Dock to RapidDock.']],
-    ['0.4.1', '2026-11-24', ['Energy unit toggle: kcal/mol (default, shown as the large figure) or kJ/mol, remembered in the browser.', 'Console hides itself when nothing is running and reappears when a task starts; it can be pinned open.', 'Vina check: AutoDock Vina 1.2.7 is current and its scoring terms and weights match Dock exactly.', 'Found and fixed a systematic bias: grid maps read about 7 % too weak at contact. Kept poses are now re-optimised and scored with exact pair sums. Crystal pose of imatinib in 1IEP: −12.53 vs −12.51 kcal/mol in Vina; redock −13.3 vs −13.26.', 'Grid spacing default is now 0.375 Å, as in Vina. New regression test dock/test/vina.test.js.']],
-    ['0.4 beta', '2026-11-23', ['Drug-likeness panel: Lipinski rule of five, Veber, Egan, TPSA, MLOGP, ESOL solubility and a SwissADME-style radar. These are estimates.', 'Console window showing progress of 3D build, minimisation, grid building and docking.', 'AutoDock-GPU job sheet export for running outside the browser (AutoDock-GPU cannot run in a web page).', 'Extra property columns in the CSV export.']],
-    ['Before 0.4', '2026-11-20 to 11-23', ['Protein surface view rebuilt: smoother atom-coloured surface, clipping plane, flat cap on cut faces.', 'First release: draw in Bondline, build 3D, minimise, load a PDB target (1IEP example), detect or set a pocket, dock, pose images, H-bonds and contacts, CSV export.']] ] },
+  { id: 'site', name: 'Home page', about: 'Landing page for the 3D printing tools.', rel: [
+    ['0.1.2a', '2026-11-24', ['Cards for each tool with its version.', 'Shared dark/light theme that is remembered.', 'Changelog page, linked from the footer and from every version chip.', 'Split from the chemistry tools (Molvex), which now live in their own repository.']] ] },
   { id: 'positioning-kit', name: 'Positioning Kit Generator', about: 'Parametric rests for a head or limb lying on its uncut surface.', rel: [
-    ['Beta 0.5', '2026-11-24', ['Version label only.']],
-    ['Earlier (0.2 beta)', 'Nov 2026', ['Signed-distance models and mesher with a 3D preview; STL and ZIP download.', 'Shared theme, Home button and version chip; single shared copy of three.js.']] ] },
+    ['0.1.2a', '2026-11-24', ['Signed-distance models and mesher with a 3D preview; STL and ZIP download.', 'Shared theme, Home button and version chip.']] ] },
   { id: 'brain-matrix', name: 'Brain Matrix Generator', about: 'Fixed-block or sliding-halves brain slicing matrices.', rel: [
-    ['Beta 0.5', '2026-11-24', ['Version label only.']],
-    ['Earlier (0.2 beta)', 'Nov 2026', ['Coronal, sagittal and axial matrices from specimen size, slice thickness and rod length; STL download.', 'Geometry cuts use a WebAssembly Manifold boolean kernel.', 'Shared theme, Home button and version chip.']] ] },
+    ['0.1.2a', '2026-11-24', ['Coronal, sagittal and axial matrices from specimen size, slice thickness and rod length; STL download.', 'Geometry cuts use a WebAssembly Manifold boolean kernel.', 'Shared theme, Home button and version chip.']] ] },
   { id: 'slicer', name: 'Layerline Slicer', about: 'Draft 3D print slicer for Bambu Lab H2S and P2S and Elegoo Centauri Carbon.', rel: [
-    ['Beta 0.5', '2026-11-24', ['Version label only.']],
-    ['Earlier (0.3 beta)', '2026-11-20 to 11-22', ['Load STL, OBJ or 3MF; organic supports; layer-by-layer preview; G-code export with machine start and end code from the vendor profiles.', 'Shared theme, Home button and version chip.']] ] }
+    ['0.1.2a', '2026-11-24', ['Load STL, OBJ or 3MF; organic supports; layer-by-layer preview; G-code export with machine start and end code from the vendor profiles.', 'Shared theme, Home button and version chip.']] ] }
 ];
 const $ = s => document.querySelector(s), esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let show = 'all';

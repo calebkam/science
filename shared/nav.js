@@ -1,6 +1,6 @@
 /* Shared navigation: a way back to the home page, and (where a page has no theme button of its own) a theme switch. */
 (function () {
-  if (window.parent !== window) return; /* embedded (Bondline inside Dock): no navigation chrome */
+  if (window.parent !== window) return; /* embedded in another page: no navigation chrome */
   var home = new URL('../', location.href).href;
   var css = document.createElement('style');
   css.textContent = '.cp-nav{display:flex;align-items:center;gap:6px;margin-left:auto}' +
@@ -15,7 +15,7 @@
     a.style.cssText = 'color:inherit;text-decoration:none'; brand.replaceWith(a);
   }
   var own = document.getElementById('b-theme');
-  if (own) { /* Bondline, Dock: a Home button beside their own theme button, styled like it */
+  if (own) { /* pages with their own theme button: a Home button beside it, styled like it */
     var h = document.createElement('a'); h.href = home; h.id = 'cp-home'; h.className = own.className; h.textContent = '\u2190 Home'; h.title = 'Back to all tools';
     h.style.cssText = 'text-decoration:none;display:inline-flex;align-items:center;justify-content:center;color:inherit'; own.parentNode.insertBefore(h, own);
   } else if (!document.getElementById('cp-theme-btn')) { /* Positioning Kit, Brain Matrix */
@@ -27,7 +27,7 @@
   var parts = location.pathname.split('/').filter(Boolean), id = parts[parts.length - 1] === 'index.html' ? parts[parts.length - 2] : parts[parts.length - 1];
   var ver = window.CP_VERSIONS && window.CP_VERSIONS[id];
   if (ver) {
-    var chip = document.createElement('span'); chip.className = 'cp-ver'; chip.id = 'cp-version'; chip.textContent = 'v' + ver; chip.title = 'Version ' + ver;
+    var chip = document.createElement('a'); chip.className = 'cp-ver'; chip.id = 'cp-version'; chip.href = new URL('../changelog/', location.href).href; chip.style.textDecoration = 'none'; chip.textContent = window.cpVer(ver); chip.title = 'Version ' + ver + ' \u00b7 see the changelog';
     var anchor = document.getElementById('b-theme') || document.getElementById('cp-theme-btn');
     if (anchor) anchor.insertAdjacentElement('afterend', chip);
   }
